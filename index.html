@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v18 -->
+<!-- zhijia v19 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -84,6 +84,9 @@
   #failVideo { width:100%; border-radius:12px; margin-top:14px; display:block; background:#000; }
   #menuNickname { width:100%; margin-top:14px; padding:12px 14px; border-radius:12px; border:1px solid rgba(120,170,255,.35); background:rgba(255,255,255,.06); color:#fff; font-size:16px; outline:none; }
   #nameHint { color:#ff9a8a; font-size:12.5px; margin-top:6px; display:none; }
+  .name-row { display:flex; gap:9px; margin-top:14px; }
+  .name-row #menuNickname { margin-top:0; flex:1; }
+  #btnNameOk { padding:0 20px; border-radius:12px; border:1px solid rgba(255,209,102,.55); background:rgba(255,209,102,.14); color:#ffd166; font-size:15.5px; font-weight:800; cursor:pointer; }
   #rankList { margin-top:14px; max-height:46vh; overflow-y:auto; }
   .rank-row { display:flex; justify-content:space-between; align-items:baseline; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.07); font-size:15px; }
   .rank-row b { color:#ffd166; font-variant-numeric:tabular-nums; }
@@ -151,7 +154,10 @@
     <h1>《智驾<span class="accent">接管</span>模拟器》<span class="tag">第二款游戏</span></h1>
     <p class="sub">刹车模拟器 · 续作</p>
     <p class="tagline">你喝了很多酒，却把命交给了自动驾驶——<br>快到路口时，<span class="red">智驾突然失灵</span>，油门锁死飙到 <b style="color:#ffd166" id="tagSpeed">139km/h</b>！<br>能不能活下来，就看你接管的这一下。</p>
-    <input id="menuNickname" maxlength="12" placeholder="输入昵称（上榜用）" autocomplete="off">
+    <div class="name-row">
+      <input id="menuNickname" maxlength="12" placeholder="输入昵称（上榜用）" autocomplete="off">
+      <button id="btnNameOk">确认</button>
+    </div>
     <div id="nameHint"></div>
     <div class="diff-box">
       <button class="diff-btn" id="diffEasy"><span class="diff-name">诚实正直不说假话</span><span class="diff-desc">简单模式 · 失控车速 60km/h · 成绩不计入排行榜</span></button>
@@ -207,6 +213,7 @@
     <p id="resultNote"></p>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnRetry">再来一局</button>
+    <button class="menu-btn" id="btnMenuResult">🏠 返回主界面</button>
   </div>
 </div>
 
@@ -216,6 +223,7 @@
     <p class="mid" id="fireEndText">车辆起火自燃，你失去了任何挽回生命的手段。</p>
     <video id="failVideo" src="fail.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
     <button class="big-btn" id="btnRetryFire">再来一局</button>
+    <button class="menu-btn" id="btnMenuFire">🏠 返回主界面</button>
   </div>
 </div>
 
@@ -226,6 +234,7 @@
     <div id="surviveStats" style="margin-top:14px; font-size:14px; line-height:2; color:#cfd8ea;"></div>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnRetrySurvive">再来一局</button>
+    <button class="menu-btn" id="btnMenuSurvive">🏠 返回主界面</button>
   </div>
 </div>
 
@@ -237,6 +246,7 @@
     <p class="news-body">某位田介车主因醉酒驾驶机动车，发生事故后编造谣言被依法处理。请大家引以为戒。</p>
     <div class="news-ticker">喝酒不开车 · 开车不喝酒 · 严禁饮酒驾驶 · 遵守交通规则 · 珍爱生命 远离醉驾</div>
     <button class="big-btn" id="btnRetryNews">再来一局</button>
+    <button class="menu-btn" id="btnMenuNews">🏠 返回主界面</button>
   </div>
 </div>
 
@@ -1204,6 +1214,37 @@ function loadRank() {
 }
 $('btnFeedback').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('feedbackOverlay').classList.remove('hidden'); });
 $('btnFbBack').addEventListener('click', () => { $('feedbackOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
+function backToMenu() {
+  hideAllOverlays();
+  Object.assign(G, { phase: 'menu', speed: 0, z: 0, brakeHeld: false, force: 0, shake: 0 });
+  CAR.group.position.set(0, 0, 0); CAR.group.rotation.set(0, 0, 0);
+  CAR.hoodPivot.rotation.x = 0;
+  CAR.airbag.visible = false; CAR.airbag.scale.setScalar(.01); airbagOut = 0;
+  CAR.crackMat.opacity = 0;
+  poleGrp.rotation.set(0, 0, 0);
+  particleMode = 'off'; setFlames(false, 0);
+  $('fireOverlay').style.opacity = 0; $('whiteFlash').style.opacity = 0;
+  $('seqBox').style.display = 'none'; $('controls').style.display = 'none'; $('forceBox').style.display = 'none'; $('distBox').style.display = 'none';
+  AU.setEngine(0, false); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
+  $('startOverlay').classList.remove('hidden');
+}
+['btnMenuResult', 'btnMenuFire', 'btnMenuNews', 'btnMenuSurvive'].forEach(id => $(id).addEventListener('click', backToMenu));
+$('btnNameOk').addEventListener('click', async () => {
+  const nm = ($('menuNickname').value || '').trim();
+  const hint = $('nameHint');
+  hint.style.display = 'block';
+  if (!nm) { hint.style.color = '#ff9a8a'; hint.textContent = '昵称不能为空（不填的话上榜显示为「无名车手」）'; return; }
+  hint.style.color = '#9fd0ff'; hint.textContent = '校验中……';
+  try {
+    const r = await postJSON('/api/brake/check-name', { name: nm });
+    if (r && r.ok) {
+      try { localStorage.setItem('zhijia:nickname', nm.slice(0, 12)); } catch (e) {}
+      hint.style.color = '#8be89a'; hint.textContent = '✅ 昵称已保存：' + nm.slice(0, 12);
+    } else {
+      hint.style.color = '#ff9a8a'; hint.textContent = (r && r.error) || '昵称不可用，换一个吧';
+    }
+  } catch (e) { hint.style.color = '#ff9a8a'; hint.textContent = '网络异常，暂时无法校验（开始游戏时会再验一次）'; }
+});
 $('btnFbSend').addEventListener('click', () => {
   const t = $('fbText').value.trim(); const msg = $('fbMsg');
   if (!t) { msg.textContent = '先写点内容吧'; return; }
