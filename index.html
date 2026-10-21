@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v12 -->
+<!-- zhijia v13 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -38,7 +38,7 @@
 
   /* ---------- 刹车按钮 ---------- */
   #controls { position:fixed; inset:0; z-index:8; pointer-events:none; display:none; }
-  #btnBrake { pointer-events:auto; position:absolute; right:50%; transform:translateX(50%); bottom:calc(env(safe-area-inset-bottom,0px) + 18px); width:132px; height:132px; border-radius:50%; border:2px solid rgba(255,110,110,.75); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(120,16,16,.55); backdrop-filter:blur(3px); font-size:23px; }
+  #btnBrake { pointer-events:auto; position:absolute; right:50%; transform:translateX(50%); bottom:calc(env(safe-area-inset-bottom,0px) + 18px); width:158px; height:64px; border-radius:14px; border:2px solid rgba(255,110,110,.75); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(120,16,16,.55); backdrop-filter:blur(3px); font-size:20px; }
   #btnBrake small { font-size:11px; font-weight:500; opacity:.85; margin-top:2px; }
   #btnBrake.pressed { filter:brightness(1.7); }
 
@@ -69,6 +69,18 @@
   .disclaimer { margin-top:14px; font-size:12px; line-height:1.7; color:#ffb3b3; background:rgba(255,60,60,.08); border:1px solid rgba(255,90,90,.3); border-radius:10px; padding:10px 12px; }
   .big-btn { display:block; width:100%; margin-top:18px; padding:15px 0; font-size:18px; font-weight:800; letter-spacing:2px; color:#fff; background:linear-gradient(180deg,#e0483e,#b3231b); border:none; border-radius:12px; cursor:pointer; box-shadow:0 8px 24px rgba(220,50,40,.35); }
   .big-btn:active { transform:scale(.98); }
+  .menu-btn { display:block; width:100%; margin-top:12px; padding:14px 0; font-size:17px; font-weight:700; letter-spacing:2px; color:#dbeafe; background:rgba(38,52,80,.9); border:1px solid rgba(120,170,255,.35); border-radius:12px; cursor:pointer; }
+  .menu-btn:active { transform:scale(.98); }
+  .menu-btn .soon { font-size:11px; color:#ffd166; border:1px solid rgba(255,209,102,.55); padding:1px 7px; border-radius:999px; margin-left:8px; vertical-align:middle; font-weight:600; letter-spacing:0; }
+  .tagline { text-align:center; margin-top:16px; font-size:15px; line-height:1.85; color:#cfd8ea; }
+  .diff-box { margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .diff-btn { text-align:left; padding:12px 14px; border-radius:12px; border:1px solid rgba(120,170,255,.3); background:rgba(255,255,255,.04); color:#dbeafe; cursor:pointer; width:100%; }
+  .diff-btn:active { transform:scale(.98); }
+  .diff-btn .diff-name { display:block; font-size:16.5px; font-weight:800; letter-spacing:1px; }
+  .diff-btn .diff-desc { display:block; margin-top:3px; font-size:12px; opacity:.75; }
+  .diff-btn.sel { border-color:#ffd166; background:rgba(255,209,102,.13); box-shadow:0 0 0 1px #ffd166 inset; }
+  .diff-btn.sel .diff-name { color:#ffd166; }
+  .tagline .red { color:#ff8080; font-weight:700; }
   .hidden { display:none !important; }
   #resultStats { margin-top:14px; font-size:14.5px; line-height:2; color:#cfd8ea; }
   #resultStats b { color:#ffd166; float:right; font-variant-numeric:tabular-nums; }
@@ -125,11 +137,34 @@
   <div class="card">
     <h1>《智驾<span class="accent">接管</span>模拟器》<span class="tag">第二款游戏</span></h1>
     <p class="sub">刹车模拟器 · 续作</p>
+    <p class="tagline">你喝了很多酒，却把命交给了自动驾驶——<br>快到路口时，<span class="red">智驾突然失灵</span>，油门锁死飙到 <b style="color:#ffd166" id="tagSpeed">139km/h</b>！<br>能不能活下来，就看你接管的这一下。</p>
+    <div class="diff-box">
+      <button class="diff-btn" id="diffEasy"><span class="diff-name">诚实正直不说假话</span><span class="diff-desc">简单模式 · 失控车速 60km/h · 成绩不计入排行榜</span></button>
+      <button class="diff-btn" id="diffHard"><span class="diff-name">遥遥领先</span><span class="diff-desc">困难模式 · 失控车速 139km/h · 成绩计入排行榜</span></button>
+    </div>
+    <button class="big-btn" id="btnStart">开始游戏</button>
+    <button class="menu-btn" id="btnHowto">🎮 游戏玩法</button>
+    <button class="menu-btn" id="btnRank">🏆 排行榜<span class="soon">即将上线</span></button>
+    <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="howtoOverlay">
+  <div class="card">
+    <h1>🎮 游戏玩法</h1>
     <p class="story">你喝了很多酒，在法律上已经构成<b>醉驾</b>，却把命交给了自动驾驶——开着一辆「田介」智驾车行驶在深夜的路上。<br>
-    快到红绿灯路口时，<span class="red">智驾突然失灵</span>：车辆没有减速，反而自动踩下油门，一瞬间飙到 <b>139km/h</b>，直冲 T 字路口对面的杆子而去！</p>
+    快到红绿灯路口时，<span class="red">智驾突然失灵</span>：车辆没有减速，反而自动踩下油门，油门瞬间锁死（失控车速：简单模式 <b>60km/h</b> · 困难模式 <b>139km/h</b>），直冲 T 字路口对面的杆子而去！</p>
     <div class="howto">🎮 第一阶段 · 路口接管<br>· 按住「刹车」力度会持续上升，松开泄力，力度决定刹车强度<br>· ⚠️ 力度超过 <b style="color:#ff8080">1612N</b> 踏板就会断裂，游戏直接失败！<br>· 点刹控力，在撞上杆子之前刹停 = 直接胜利（结算会给出刹车用时）<br><br>🎮 第二阶段 · 撞毁逃生（只有撞上才会进入）<br>· 你只有 <b>3 秒钟</b>：按顺序点对三个按钮——开车门 → 快跑！ → 拨打紧急电话<br>· 按钮位置每局随机打乱，按错或超时，后果自负……</div>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
-    <button class="big-btn" id="btnStart">开始游戏</button>
+    <button class="big-btn" id="btnHowtoBack">返回</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="rankOverlay">
+  <div class="card">
+    <h1>🏆 排行榜</h1>
+    <p class="story" style="text-align:center">排行榜即将上线，敬请期待。</p>
+    <button class="big-btn" id="btnRankBack">返回</button>
   </div>
 </div>
 
@@ -375,24 +410,24 @@ function buildCar(paintColor, withInterior) {
   const firewall = new THREE.Mesh(new THREE.BoxGeometry(1.72, .78, .06), trim); firewall.position.set(0, .72, -1.02); firewall.rotation.x = .35; car.add(firewall);
   /* ---- 座舱（镜头空间：按画面坐标摆位，互不重叠） ---- */
   const cockpit = new THREE.Group(); refs.cockpit = cockpit;
-  const dash = new THREE.Mesh(new THREE.BoxGeometry(2.6, .435, .12), trim); dash.position.set(0, -.193, -1.32); dash.rotation.x = .08; cockpit.add(dash);
-  const dashTop = new THREE.Mesh(new THREE.BoxGeometry(2.6, .04, .24), trim2); dashTop.position.set(0, .055, -1.36); dashTop.rotation.x = .12; cockpit.add(dashTop);
+  const dash = new THREE.Mesh(new THREE.BoxGeometry(2.6, .435, .12), trim); dash.position.set(0, -.16, -1.32); dash.rotation.x = .08; cockpit.add(dash);
+  const dashTop = new THREE.Mesh(new THREE.BoxGeometry(2.6, .04, .24), trim2); dashTop.position.set(0, .085, -1.36); dashTop.rotation.x = .12; cockpit.add(dashTop);
   [-.62, .62].forEach(x => {
     const vent = new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .03), paintDark);
-    vent.position.set(x * .65, -.08, -1.25); vent.rotation.x = .08; cockpit.add(vent);
+    vent.position.set(x * .65, -.05, -1.25); vent.rotation.x = .08; cockpit.add(vent);
   });
   /* ---- 大悬浮中控屏（新能源车风格） ---- */
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x2f7bff });
   const strip = new THREE.Mesh(new THREE.BoxGeometry(2.2, .016, .012), stripMat);
-  strip.position.set(0, -.375, -1.26); strip.rotation.x = -.1; cockpit.add(strip);
+  strip.position.set(0, -.345, -1.26); strip.rotation.x = -.1; cockpit.add(strip);
   refs.stripMat = stripMat;
   const scrArm = new THREE.Mesh(new THREE.BoxGeometry(.06, .18, .05), trim2);
-  scrArm.position.set(.224, -.265, -1.24); cockpit.add(scrArm);
-  const screenGroup = new THREE.Group(); screenGroup.position.set(.224, -.145, -1.16); screenGroup.rotation.x = -.04; screenGroup.rotation.y = -.08; cockpit.add(screenGroup);
-  const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.46, .315, .03), std(0x14161a, .35, .5)); screenGroup.add(screenBody);
+  scrArm.position.set(.27, -.27, -1.24); cockpit.add(scrArm);
+  const screenGroup = new THREE.Group(); screenGroup.position.set(.27, -.165, -1.16); screenGroup.rotation.x = -.04; screenGroup.rotation.y = -.08; cockpit.add(screenGroup);
+  const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.43, .295, .03), std(0x14161a, .35, .5)); screenGroup.add(screenBody);
   const scrCanvas = document.createElement('canvas'); scrCanvas.width = 512; scrCanvas.height = 288;
   const scrTex = new THREE.CanvasTexture(scrCanvas);
-  const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(.437, .246), new THREE.MeshBasicMaterial({ map: scrTex }));
+  const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(.408, .23), new THREE.MeshBasicMaterial({ map: scrTex }));
   scrMesh.position.z = .016; screenGroup.add(scrMesh);
   let screenMode = 'normal', scrTickCount = 0, scrBlink = false;
   function drawScreenNormal(kmh) {
@@ -465,10 +500,10 @@ function buildCar(paintColor, withInterior) {
   /* 仪表：宽幅液晶条 */
   const clusterCanvas = document.createElement('canvas'); clusterCanvas.width = 512; clusterCanvas.height = 128;
   const clusterTex = new THREE.CanvasTexture(clusterCanvas);
-  const binnaBack = new THREE.Mesh(new THREE.BoxGeometry(.5, .2, .03), std(0x0a0b0e, .95)); binnaBack.position.set(-.148, .03, -1.23); cockpit.add(binnaBack);
-  const binnaHood = new THREE.Mesh(new THREE.BoxGeometry(.5, .04, .2), trim2); binnaHood.position.set(-.148, .125, -1.18); binnaHood.rotation.x = .25; cockpit.add(binnaHood);
-  const clusterMesh = new THREE.Mesh(new THREE.PlaneGeometry(.42, .13), new THREE.MeshBasicMaterial({ map: clusterTex }));
-  clusterMesh.position.set(-.148, .03, -1.15); clusterMesh.rotation.x = -.1; cockpit.add(clusterMesh);
+  const binnaBack = new THREE.Mesh(new THREE.BoxGeometry(.5, .2, .03), std(0x0a0b0e, .95)); binnaBack.position.set(-.2, .07, -1.23); cockpit.add(binnaBack);
+  const binnaHood = new THREE.Mesh(new THREE.BoxGeometry(.5, .04, .2), trim2); binnaHood.position.set(-.2, .155, -1.18); binnaHood.rotation.x = .25; cockpit.add(binnaHood);
+  const clusterMesh = new THREE.Mesh(new THREE.PlaneGeometry(.38, .117), new THREE.MeshBasicMaterial({ map: clusterTex }));
+  clusterMesh.position.set(-.2, .07, -1.15); clusterMesh.rotation.x = -.1; cockpit.add(clusterMesh);
   
   refs.drawCluster = (speedKmh, gear) => {
     const g = clusterCanvas.getContext('2d');
@@ -489,7 +524,7 @@ function buildCar(paintColor, withInterior) {
   };
   refs.drawCluster(0, 'D');
   /* 方向盘 + 气囊 */
-  const wheel = new THREE.Group(); wheel.position.set(-.131, -.275, -1.02); wheel.rotation.x = -.42; cockpit.add(wheel);
+  const wheel = new THREE.Group(); wheel.position.set(-.131, -.245, -1.02); wheel.rotation.x = -.42; cockpit.add(wheel);
   const leather = std(0x3d4048, .6);
   wheel.add(new THREE.Mesh(new THREE.TorusGeometry(.207, .03, 12, 40), leather));
   const ringTrim = new THREE.Mesh(new THREE.TorusGeometry(.18, .005, 8, 40), std(0x8f979f, .3, .8)); wheel.add(ringTrim);
@@ -506,27 +541,27 @@ function buildCar(paintColor, withInterior) {
   const emblem = new THREE.Mesh(new THREE.CircleGeometry(.033, 20), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(emblemC) }));
   emblem.position.z = .027; wheel.add(emblem);
   const shroud = new THREE.Mesh(new THREE.BoxGeometry(.12, .1, .36), trim);
-  shroud.position.set(-.131, -.255, -1.15); shroud.rotation.x = .5; cockpit.add(shroud);
+  shroud.position.set(-.131, -.225, -1.15); shroud.rotation.x = .5; cockpit.add(shroud);
   [-1, 1].forEach(s => {
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(.011, .013, .17, 8), trim2);
-    stalk.position.set(-.131 + s * .15, -.295, -1.08); stalk.rotation.z = s * 1.15; stalk.rotation.x = .25; cockpit.add(stalk);
+    stalk.position.set(-.131 + s * .15, -.265, -1.08); stalk.rotation.z = s * 1.15; stalk.rotation.x = .25; cockpit.add(stalk);
   });
   const column = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .3, 8), trim);
-  column.position.set(-.131, -.27, -1.16); column.rotation.x = 1.1; cockpit.add(column);
+  column.position.set(-.131, -.24, -1.16); column.rotation.x = 1.1; cockpit.add(column);
   const airbag = new THREE.Mesh(new THREE.SphereGeometry(.145, 24, 18), std(0xb9bcbf, .95));
   const bagSeam = new THREE.Mesh(new THREE.TorusGeometry(.095, .007, 8, 28), std(0x8f9296, .9)); bagSeam.position.z = .1; airbag.add(bagSeam);
-  airbag.position.set(-.131, -.275, -.86); airbag.scale.setScalar(.01); airbag.visible = false; cockpit.add(airbag);
+  airbag.position.set(-.131, -.245, -.86); airbag.scale.setScalar(.01); airbag.visible = false; cockpit.add(airbag);
   refs.airbag = airbag; refs.wheel = wheel;
   [-1, 1].forEach(s => {
     const ap = new THREE.Mesh(new THREE.BoxGeometry(.06, 1.5, .07), std(0x17181c, .95));
     ap.position.set(s * .5, .28, -.95); ap.rotation.z = -s * .18; ap.rotation.x = .15; cockpit.add(ap);
     const visor = new THREE.Mesh(new THREE.BoxGeometry(.32, .15, .02), trim2);
-    visor.position.set(s * .29, .5, -.9); visor.rotation.x = .18; cockpit.add(visor);
+    visor.position.set(s * .29, .56, -.9); visor.rotation.x = .18; cockpit.add(visor);
   });
   const headBand = new THREE.Mesh(new THREE.BoxGeometry(2.2, .2, .05), new THREE.MeshBasicMaterial({ color: 0x0d0e10 }));
-  headBand.position.set(0, .7, -.88); headBand.rotation.x = .22; cockpit.add(headBand);
-  const mirBody = new THREE.Mesh(new THREE.BoxGeometry(.27, .08, .025), trim); mirBody.position.set(0, .46, -.88); cockpit.add(mirBody);
-  const mirGlass = new THREE.Mesh(new THREE.PlaneGeometry(.24, .06), std(0x2a3644, .05, .9)); mirGlass.position.set(0, .46, -.865); cockpit.add(mirGlass);
+  headBand.position.set(0, .76, -.88); headBand.rotation.x = .22; cockpit.add(headBand);
+  const mirBody = new THREE.Mesh(new THREE.BoxGeometry(.27, .08, .025), trim); mirBody.position.set(0, .52, -.88); cockpit.add(mirBody);
+  const mirGlass = new THREE.Mesh(new THREE.PlaneGeometry(.24, .06), std(0x2a3644, .05, .9)); mirGlass.position.set(0, .52, -.865); cockpit.add(mirGlass);
   const footLightC = new THREE.PointLight(0xffd9a8, 1.6, 2.0, 1.2); footLightC.position.set(-.12, -.43, -.72); cockpit.add(footLightC);
   const dashLightC = new THREE.PointLight(0xffe2b8, 1.1, 2.6, 1.2); dashLightC.position.set(0, -.06, -.55); cockpit.add(dashLightC);
   /* 中控台 + 座椅 */
@@ -871,7 +906,8 @@ function setFlames(on, carZ) {
   if (!on) fireLight.intensity = 0;
 }
 /* ================= 游戏逻辑 ================= */
-const CRUISE_V = 18.3, TOP_V = 139 / 3.6, RUN_ACCEL = 6.0, TRIGGER_DIST = 200;
+const CRUISE_V = 18.3, RUN_ACCEL = 6.0, TRIGGER_DIST = 200;
+let TOP_V = 139 / 3.6;
 const FORCE_MAX = 1612, FORCE_RISE = 1500, FORCE_FALL = 3400, BRAKE_MAX_DECEL = 11;
 const SEQ = ['door', 'run', 'call'];
 const SEQ_LABEL = { door: '🚪 开车门', run: '🏃 快跑！', call: '📞 拨打紧急电话' };
@@ -880,7 +916,7 @@ let clusterTimer = 0, yellowSet = false, redSet = false, crashTimer = 0, snapTim
 let impactSpeed = 0, seqStep = 0, seqOrder = [], seqBtnEls = [], airbagOut = 0, cdValue = 30, cdLast = -1, cdRed = false;
 
 function hideAllOverlays() {
-  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay'].forEach(id => $(id).classList.add('hidden'));
+  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay'].forEach(id => $(id).classList.add('hidden'));
 }
 function resetGame() {
   Object.assign(G, { phase: 'cruise', speed: 0, z: 0, brakeHeld: false, force: 0, maxForce: 0,
@@ -1013,7 +1049,7 @@ function showResult(kind) {
   if (kind === 'win') {
     const margin = Math.max(0, G.z - POLE_Z);
     $('resultTitle').textContent = '🏆 成功刹停 · 游戏胜利！';
-    $('resultStats').innerHTML = `刹车用时 <b>${G.brakeTime.toFixed(2)} 秒</b><br>接管反应 <b>${react}</b><br>最高速度 <b>${kmh} km/h</b><br>最大力度 <b>${Math.round(G.maxForce)} N</b><br>停车余量 <b>${margin.toFixed(1)} 米</b>`;
+    $('resultStats').innerHTML = `刹车用时 <b>${G.brakeTime.toFixed(2)} 秒</b><br>接管反应 <b>${react}</b><br>最高速度 <b>${kmh} km/h</b><br>最大力度 <b>${Math.round(G.maxForce)} N</b><br>停车余量 <b>${margin.toFixed(1)} 米</b><br>难度 <b>${DIFF === 'hard' ? '遥遥领先 · 计入排行榜' : '诚实正直不说假话 · 不计入排行榜'}</b>`;
     $('resultNote').textContent = margin >= 25 ? '点刹控力稳如老司机，力度始终没碰 1612N 红线，稳稳停住——游戏胜利！可惜现实中，醉驾的人不会有这种手。'
       : margin >= 5 ? '有惊无险！杆子就在前方，你用点刹把力度死死压在断裂线以下，成功刹停，游戏胜利！'
       : '车头几乎贴上杆子才停住！再多一分力度踏板就断了，再少一分就撞上去了——极限胜利！';
@@ -1048,6 +1084,21 @@ addEventListener('keyup', e => { if (e.code === 'Space') G.brakeHeld = false; })
 ['btnStart', 'btnRetry', 'btnRetryFire', 'btnRetryNews', 'btnRetrySurvive'].forEach(id => {
   $(id).addEventListener('click', () => { AU.init(); resetGame(); });
 });
+$('btnHowto').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('howtoOverlay').classList.remove('hidden'); });
+$('btnHowtoBack').addEventListener('click', () => { $('howtoOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
+$('btnRank').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('rankOverlay').classList.remove('hidden'); });
+$('btnRankBack').addEventListener('click', () => { $('rankOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
+let DIFF = localStorage.getItem('zhijia-difficulty') === 'easy' ? 'easy' : 'hard';
+function applyDiff() {
+  TOP_V = (DIFF === 'easy' ? 60 : 139) / 3.6;
+  G.ranked = DIFF === 'hard';
+  $('diffEasy').classList.toggle('sel', DIFF === 'easy');
+  $('diffHard').classList.toggle('sel', DIFF === 'hard');
+  const ts = $('tagSpeed'); if (ts) ts.textContent = (DIFF === 'easy' ? 60 : 139) + 'km/h';
+}
+$('diffEasy').addEventListener('click', () => { DIFF = 'easy'; try { localStorage.setItem('zhijia-difficulty', 'easy'); } catch (e) {} applyDiff(); });
+$('diffHard').addEventListener('click', () => { DIFF = 'hard'; try { localStorage.setItem('zhijia-difficulty', 'hard'); } catch (e) {} applyDiff(); });
+applyDiff();
 
 /* ================= 主循环 ================= */
 const clock = new THREE.Clock();
@@ -1071,7 +1122,7 @@ function step(dt, t) {
     if (G.phase === 'runaway') {
       const ratio = clamp(G.force / FORCE_MAX, 0, 1);
       if (G.force > 5) G.speed -= BRAKE_MAX_DECEL * ratio * dt;
-      else G.speed += RUN_ACCEL * dt;
+      else G.speed += clamp(TOP_V - G.speed, -RUN_ACCEL * dt, RUN_ACCEL * dt);
       G.speed = clamp(G.speed, 0, TOP_V);
       G.maxSpeed = Math.max(G.maxSpeed, G.speed);
       const prevZ = G.z;
@@ -1168,9 +1219,10 @@ function step(dt, t) {
   /* ---- 踏板动画 ---- */
   if (ph === 'cruise' || ph === 'runaway') {
     const ratio = clamp(G.force / FORCE_MAX, 0, 1);
-    CAR.brakePedal.position.y = -.41 - ratio * .02;
-    CAR.brakePedal.position.z = -1.22 - ratio * .015;
-    const stuck = ph === 'runaway' && G.force <= 5;
+    CAR.brakePedal.position.y = -.41 - ratio * .055;
+    CAR.brakePedal.position.z = -1.22 - ratio * .04;
+    CAR.brakePedal.rotation.x = -ratio * .15;
+    const stuck = ph === 'runaway';
     CAR.accelPedal.position.y = stuck ? -.445 : -.41;
     CAR.accelPedal.position.z = stuck ? -1.235 : -1.22;
   }
