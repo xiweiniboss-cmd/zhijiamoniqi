@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v4 -->
+<!-- zhijia v5 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -451,8 +451,8 @@ function buildCar(paintColor, withInterior) {
   const clusterCanvas = document.createElement('canvas'); clusterCanvas.width = 512; clusterCanvas.height = 128;
   const clusterTex = new THREE.CanvasTexture(clusterCanvas);
   const clusterMesh = new THREE.Mesh(new THREE.PlaneGeometry(.46, .115), new THREE.MeshBasicMaterial({ map: clusterTex }));
-  clusterMesh.position.set(-.3, 1.03, -.62); clusterMesh.rotation.x = -.25; car.add(clusterMesh);
-  const binna = new THREE.Mesh(new THREE.BoxGeometry(.56, .05, .24), trim); binna.position.set(-.3, 1.115, -.57); car.add(binna);
+  clusterMesh.position.set(-.3, 1.05, -.44); clusterMesh.rotation.x = -.18; car.add(clusterMesh);
+  const binna = new THREE.Mesh(new THREE.BoxGeometry(.56, .05, .24), trim); binna.position.set(-.3, 1.14, -.47); car.add(binna);
   refs.drawCluster = (speedKmh, gear) => {
     const g = clusterCanvas.getContext('2d');
     const grad = g.createLinearGradient(0, 0, 0, 128);
@@ -525,10 +525,10 @@ function buildCar(paintColor, withInterior) {
   const footwell = new THREE.Mesh(new THREE.BoxGeometry(.64, .52, .05), paintDark);
   footwell.position.set(-.3, .4, -.9); footwell.rotation.x = .22; car.add(footwell);
   function pedalAssembly(x, padW, padH) {
-    const grp = new THREE.Group(); grp.position.set(x, .575, -.64);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(.045, .3, .04), trim2);
+    const grp = new THREE.Group(); grp.position.set(x, .6, -.6);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.045, .3, .04), std(0x6a7076, .5, .3));
     arm.position.set(0, .18, -.08); arm.rotation.x = .35; grp.add(arm);
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(padW, padH, .035), std(0x43474f, .45, .65));
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(padW, padH, .035), std(0x596068, .55, .15));
     pad.rotation.x = -.32; grp.add(pad);
     for (let i = -1; i <= 1; i++) {
       const rib = new THREE.Mesh(new THREE.BoxGeometry(padW * .8, .013, .008), paintDark);
@@ -536,8 +536,8 @@ function buildCar(paintColor, withInterior) {
     }
     car.add(grp); return grp;
   }
-  const brakePedal = pedalAssembly(-.4, .17, .11);
-  const accelPedal = pedalAssembly(-.19, .085, .22);
+  const brakePedal = pedalAssembly(-.4, .19, .12);
+  const accelPedal = pedalAssembly(-.19, .09, .24);
   refs.brakePedal = brakePedal; refs.accelPedal = accelPedal;
   /* 挡风裂纹 */
   const crackMat = new THREE.MeshBasicMaterial({ map: crackTexture(), transparent: true, opacity: 0, depthWrite: false });
@@ -545,7 +545,7 @@ function buildCar(paintColor, withInterior) {
   crack.position.set(-.15, 1.18, -.93); crack.rotation.x = -.5; car.add(crack);
   refs.crackMat = crackMat;
   const cabinLight = new THREE.PointLight(0xffd9a8, 6, 5, 1.2); cabinLight.position.set(0, 1.36, -.05); car.add(cabinLight);
-  const footLight = new THREE.PointLight(0xffd9a8, 1.6, 1.9, 1.2); footLight.position.set(-.3, .78, -.3); car.add(footLight);
+  const footLight = new THREE.PointLight(0xffd9a8, 2.6, 2.2, 1.2); footLight.position.set(-.3, .8, -.28); car.add(footLight);
   return refs;
 }
 const CAR = buildCar(0x2b3f5f, true);
@@ -864,7 +864,7 @@ function resetGame() {
   CAR.hoodPivot.rotation.x = 0;
   CAR.airbag.visible = false; CAR.airbag.scale.setScalar(.01); airbagOut = 0;
   CAR.crackMat.opacity = 0;
-  CAR.brakePedal.rotation.set(0, 0, 0); CAR.brakePedal.position.set(-.4, .575, -.64);
+  CAR.brakePedal.rotation.set(0, 0, 0); CAR.brakePedal.position.set(-.4, .6, -.6);
   CAR.setScreen('normal'); CAR.stripMat.color.setHex(0x2f7bff);
   poleGrp.rotation.set(0, 0, 0);
   particleMode = 'off';
@@ -898,7 +898,7 @@ function triggerFailure() {
 function pedalSnap() {
   G.phase = 'snap'; snapTimer = 1.2; G.force = 0;
   AU.crack(); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
-  CAR.brakePedal.rotation.x = -1.15; CAR.brakePedal.position.y = .515;
+  CAR.brakePedal.rotation.x = -1.15; CAR.brakePedal.position.y = .54;
   $('banner').textContent = '💥 力度超过 1612N · 刹车踏板断裂！';
   $('vignette').className = '';
 }
@@ -1140,11 +1140,11 @@ function step(dt, t) {
   /* ---- 踏板动画 ---- */
   if (ph === 'cruise' || ph === 'runaway') {
     const ratio = clamp(G.force / FORCE_MAX, 0, 1);
-    CAR.brakePedal.position.y = .575 - ratio * .035;
-    CAR.brakePedal.position.z = -.64 + ratio * .02;
+    CAR.brakePedal.position.y = .6 - ratio * .035;
+    CAR.brakePedal.position.z = -.6 + ratio * .02;
     const stuck = ph === 'runaway' && G.force <= 5;
-    CAR.accelPedal.position.y = stuck ? .54 : .575;
-    CAR.accelPedal.position.z = stuck ? -.62 : -.64;
+    CAR.accelPedal.position.y = stuck ? .565 : .6;
+    CAR.accelPedal.position.z = stuck ? -.58 : -.6;
   }
 
   /* ---- HUD ---- */
