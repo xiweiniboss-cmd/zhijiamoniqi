@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v14 -->
+<!-- zhijia v15 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -613,6 +613,7 @@ function buildCar(paintColor, withInterior) {
 const CAR = buildCar(0x2b3f5f, true);
 scene.add(CAR.group);
 scene.add(camera);
+CAR.cockpit.position.y = -.06;
 camera.add(CAR.cockpit);
 const camLight = new THREE.PointLight(0xffe2b8, .75, 3.5, 1.2); camLight.position.set(0, .15, .1); camera.add(camLight);
 /* 车头灯光 */
