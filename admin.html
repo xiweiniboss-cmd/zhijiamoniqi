@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智驾接管模拟器 · 后台管理</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0f1a; color:#dbeafe; font-family:-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; padding:18px 14px 60px; }
+  .wrap { max-width:860px; margin:0 auto; }
+  h1 { font-size:21px; letter-spacing:1px; }
+  h1 .red { color:#ff5a4e; }
+  h2 { font-size:16.5px; margin:26px 0 10px; color:#ffd166; }
+  .sub { color:#8fa3c8; font-size:13px; margin-top:6px; line-height:1.7; }
+  .card { background:linear-gradient(160deg,#101827,#0a0f1a); border:1px solid rgba(120,170,255,.3); border-radius:14px; padding:16px; margin-top:14px; }
+  input[type=password] { width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(120,170,255,.35); background:rgba(255,255,255,.06); color:#fff; font-size:16px; outline:none; }
+  button { cursor:pointer; border:none; border-radius:10px; font-weight:700; }
+  .btn-main { width:100%; margin-top:12px; padding:13px 0; font-size:16px; letter-spacing:2px; color:#fff; background:linear-gradient(180deg,#e0483e,#b3231b); }
+  .btn-sub { padding:8px 14px; font-size:13.5px; color:#dbeafe; background:rgba(38,52,80,.9); border:1px solid rgba(120,170,255,.35); }
+  .btn-danger { padding:8px 14px; font-size:13.5px; color:#ffb3ab; background:rgba(120,16,16,.35); border:1px solid rgba(255,110,110,.4); }
+  .btn-mini { padding:4px 10px; font-size:12px; color:#ffb3ab; background:rgba(120,16,16,.35); border:1px solid rgba(255,110,110,.35); border-radius:7px; }
+  .row-btns { display:flex; gap:9px; margin-top:10px; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:8px; }
+  th, td { padding:7px 6px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; white-space:nowrap; }
+  th { color:#8fa3c8; font-weight:600; }
+  .scroll { overflow-x:auto; }
+  .msg { margin-top:10px; font-size:13.5px; color:#9fd0ff; min-height:18px; }
+  .err { color:#ff9a8a; }
+  .hidden { display:none; }
+  .stat b { color:#ffd166; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>《智驾<span class="red">接管</span>模拟器》· 后台管理</h1>
+  <p class="sub">数据与 DeepSeek 站共享同一后端（FEEDBACK_KV）；管理密钥与 DeepSeek 站后台相同。</p>
+
+  <div class="card" id="loginCard">
+    <input type="password" id="keyInput" placeholder="管理密钥" autocomplete="off">
+    <button class="btn-main" id="btnLogin">进入后台</button>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+
+  <div id="panel" class="hidden">
+    <h2>🏆 排行榜（困难模式胜利 · 每设备最佳）</h2>
+    <div class="card">
+      <div class="stat" id="boardStat">加载中……</div>
+      <div class="scroll"><table id="boardTable"></table></div>
+      <div class="row-btns">
+        <button class="btn-sub" id="btnBoardReload">刷新</button>
+        <button class="btn-danger" id="btnBoardReset">清空排行榜</button>
+      </div>
+      <div class="msg" id="boardMsg"></div>
+    </div>
+
+    <h2>🎮 游戏记录（最近 200 局）</h2>
+    <div class="card">
+      <div class="stat" id="recStat">加载中……</div>
+      <div class="scroll"><table id="recTable"></table></div>
+      <div class="row-btns">
+        <button class="btn-sub" id="btnRecReload">刷新</button>
+        <button class="btn-danger" id="btnRecClear">清空记录</button>
+      </div>
+      <div class="msg" id="recMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://deepseekchatkele.pages.dev';
+let KEY = sessionStorage.getItem('zhijia_admin_key') || '';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtT = ts => { if (!ts) return '—'; const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+const RESULT = { win: '🏆 刹停胜利', snap: '💥 踏板断裂', burned: '🔥 车辆起火', news: '📰 新闻播报', survive: '🚪 逃生成功' };
+
+async function api(path, opts) {
+  const r = await fetch(API + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(KEY), opts);
+  return r.json().catch(() => ({}));
+}
+async function post(path, body) {
+  return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+}
+
+async function loadBoard() {
+  const res = await api('/api/admin/zhijia/board');
+  if (!res.ok) { $('boardStat').innerHTML = '<span class="err">' + esc(res.error || '加载失败') + '</span>'; return; }
+  $('boardStat').innerHTML = '共 <b>' + res.count + '</b> 名上榜玩家';
+  let h = '<tr><th>#</th><th>昵称</th><th>刹车用时</th><th>余量</th><th>反应</th><th>得分</th><th>时间</th><th>设备</th><th>IP</th><th></th></tr>';
+  res.board.forEach((e, i) => {
+    h += '<tr><td>' + (i + 1) + '</td><td>' + esc(e.n) + '</td><td>' + (+e.t).toFixed(2) + 's</td><td>' + (+e.m).toFixed(1) + 'm</td><td>' + (e.r >= 0 ? (+e.r).toFixed(2) + 's' : '—') + '</td><td>' + e.s + '</td><td>' + fmtT(e.ts) + '</td><td>' + esc(String(e.d).slice(0, 10)) + '</td><td>' + esc(e.ip) + '</td><td><button class="btn-mini" data-del-board="' + esc(e.d) + '">删除</button></td></tr>';
+  });
+  $('boardTable').innerHTML = h;
+  document.querySelectorAll('[data-del-board]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('删除该玩家的上榜成绩？')) return;
+    const r = await post('/api/admin/zhijia/delete-entry', { device: b.getAttribute('data-del-board') });
+    $('boardMsg').textContent = r.ok ? '已删除' : (r.error || '删除失败');
+    if (r.ok) loadBoard();
+  }));
+}
+async function loadRecords() {
+  const res = await api('/api/admin/zhijia/records');
+  if (!res.ok) { $('recStat').innerHTML = '<span class="err">' + esc(res.error || '加载失败') + '</span>'; return; }
+  $('recStat').innerHTML = '最近 <b>' + res.count + '</b> 局 · 其中胜利 <b>' + res.winCount + '</b> 局';
+  let h = '<tr><th>时间</th><th>昵称</th><th>难度</th><th>结局</th><th>刹车用时</th><th>反应</th><th>最大力度</th><th>最高速</th><th>余量</th><th>IP</th><th></th></tr>';
+  res.records.forEach(e => {
+    h += '<tr><td>' + fmtT(e.ts) + '</td><td>' + esc(e.n) + '</td><td>' + (e.mode === 'easy' ? '简单' : '困难') + '</td><td>' + (RESULT[e.result] || e.result) + '</td><td>' + (e.t > 0 ? (+e.t).toFixed(2) + 's' : '—') + '</td><td>' + (e.r >= 0 ? (+e.r).toFixed(2) + 's' : '—') + '</td><td>' + Math.round(e.f) + 'N</td><td>' + Math.round(e.v) + 'km/h</td><td>' + (+e.m).toFixed(1) + 'm</td><td>' + esc(e.ip) + '</td><td><button class="btn-mini" data-del-rec="' + esc(e.key) + '">删除</button></td></tr>';
+  });
+  $('recTable').innerHTML = h;
+  document.querySelectorAll('[data-del-rec]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('删除这条记录？')) return;
+    const r = await post('/api/admin/zhijia/delete-record', { key: b.getAttribute('data-del-rec') });
+    $('recMsg').textContent = r.ok ? '已删除' : (r.error || '删除失败');
+    if (r.ok) loadRecords();
+  }));
+}
+async function enter() {
+  const res = await api('/api/admin/zhijia/board');
+  if (!res.ok) { $('loginMsg').innerHTML = '<span class="err">' + esc(res.error || '密钥不对') + '</span>'; return; }
+  sessionStorage.setItem('zhijia_admin_key', KEY);
+  $('loginCard').classList.add('hidden');
+  $('panel').classList.remove('hidden');
+  loadBoard(); loadRecords();
+}
+$('btnLogin').addEventListener('click', () => { KEY = $('keyInput').value.trim(); if (KEY) enter(); });
+$('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin').click(); });
+$('btnBoardReload').addEventListener('click', loadBoard);
+$('btnRecReload').addEventListener('click', loadRecords);
+$('btnBoardReset').addEventListener('click', async () => {
+  if (!confirm('确定清空整个排行榜？此操作不可恢复！')) return;
+  const r = await post('/api/admin/zhijia/reset');
+  $('boardMsg').textContent = r.ok ? '排行榜已清空' : (r.error || '操作失败');
+  if (r.ok) loadBoard();
+});
+$('btnRecClear').addEventListener('click', async () => {
+  if (!confirm('确定清空全部游戏记录？此操作不可恢复！')) return;
+  const r = await post('/api/admin/zhijia/clear-records');
+  $('recMsg').textContent = r.ok ? '记录已清空' : (r.error || '操作失败');
+  if (r.ok) loadRecords();
+});
+if (KEY) { $('keyInput').value = KEY; enter(); }
+</script>
+</body>
+</html>

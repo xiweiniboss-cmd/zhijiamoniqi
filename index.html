@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v17 -->
+<!-- zhijia v18 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -82,6 +82,16 @@
   .menu-row { display:flex; gap:9px; }
   .menu-btn.half { flex:1; font-size:15px; letter-spacing:0; }
   #failVideo { width:100%; border-radius:12px; margin-top:14px; display:block; background:#000; }
+  #menuNickname { width:100%; margin-top:14px; padding:12px 14px; border-radius:12px; border:1px solid rgba(120,170,255,.35); background:rgba(255,255,255,.06); color:#fff; font-size:16px; outline:none; }
+  #nameHint { color:#ff9a8a; font-size:12.5px; margin-top:6px; display:none; }
+  #rankList { margin-top:14px; max-height:46vh; overflow-y:auto; }
+  .rank-row { display:flex; justify-content:space-between; align-items:baseline; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.07); font-size:15px; }
+  .rank-row b { color:#ffd166; font-variant-numeric:tabular-nums; }
+  .rank-sub { color:#8fa3c8; font-size:12px; margin-left:8px; }
+  .rank-tip { text-align:center; color:#8fa3c8; font-size:14px; padding:16px 0; }
+  #rankLine { margin-top:10px; font-size:14px; color:#9fd0ff; text-align:center; min-height:20px; line-height:1.6; }
+  #fbText { width:100%; margin-top:14px; padding:12px 14px; border-radius:12px; border:1px solid rgba(120,170,255,.35); background:rgba(255,255,255,.06); color:#fff; font-size:15px; outline:none; resize:vertical; font-family:inherit; }
+  #fbMsg { margin-top:10px; font-size:13.5px; color:#9fd0ff; min-height:18px; text-align:center; }
   #viewBtnHud { position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); z-index:9; height:42px; padding:0 14px; border-radius:21px; border:1px solid rgba(255,255,255,.25); background:rgba(10,16,28,.6); color:#fff; font-size:14px; font-weight:700; }
   .tagline .red { color:#ff8080; font-weight:700; }
   .hidden { display:none !important; }
@@ -141,17 +151,20 @@
     <h1>《智驾<span class="accent">接管</span>模拟器》<span class="tag">第二款游戏</span></h1>
     <p class="sub">刹车模拟器 · 续作</p>
     <p class="tagline">你喝了很多酒，却把命交给了自动驾驶——<br>快到路口时，<span class="red">智驾突然失灵</span>，油门锁死飙到 <b style="color:#ffd166" id="tagSpeed">139km/h</b>！<br>能不能活下来，就看你接管的这一下。</p>
+    <input id="menuNickname" maxlength="12" placeholder="输入昵称（上榜用）" autocomplete="off">
+    <div id="nameHint"></div>
     <div class="diff-box">
       <button class="diff-btn" id="diffEasy"><span class="diff-name">诚实正直不说假话</span><span class="diff-desc">简单模式 · 失控车速 60km/h · 成绩不计入排行榜</span></button>
       <button class="diff-btn" id="diffHard"><span class="diff-name">遥遥领先</span><span class="diff-desc">困难模式 · 失控车速 139km/h · 成绩计入排行榜</span></button>
     </div>
     <button class="big-btn" id="btnStart">开始游戏</button>
     <button class="menu-btn" id="btnHowto">🎮 游戏玩法</button>
-    <button class="menu-btn" id="btnRank">🏆 排行榜<span class="soon">即将上线</span></button>
+    <button class="menu-btn" id="btnRank">🏆 排行榜</button>
     <div class="menu-row">
       <button class="menu-btn half" id="viewBtn">🚗 视角：车外</button>
       <button class="menu-btn half" id="muteBtn">🔊 音效：开</button>
     </div>
+    <button class="menu-btn" id="btnFeedback">💬 反馈</button>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
   </div>
 </div>
@@ -170,8 +183,19 @@
 <div class="overlay hidden" id="rankOverlay">
   <div class="card">
     <h1>🏆 排行榜</h1>
-    <p class="story" style="text-align:center">排行榜即将上线，敬请期待。</p>
+    <p class="story" style="text-align:center; font-size:13.5px;">仅「遥遥领先」困难模式的胜利成绩上榜<br>按刹车用时排名 · 用时越短名次越高</p>
+    <div id="rankList"><p class="rank-tip">加载中……</p></div>
     <button class="big-btn" id="btnRankBack">返回</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="feedbackOverlay">
+  <div class="card">
+    <h1>💬 反馈</h1>
+    <textarea id="fbText" rows="5" maxlength="2000" placeholder="想说的话、遇到的问题……"></textarea>
+    <div id="fbMsg"></div>
+    <button class="big-btn" id="btnFbSend">发送反馈</button>
+    <button class="menu-btn" id="btnFbBack">返回</button>
   </div>
 </div>
 
@@ -179,6 +203,7 @@
   <div class="card">
     <h1 id="resultTitle">结果</h1>
     <div id="resultStats"></div>
+    <div id="rankLine"></div>
     <p id="resultNote"></p>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnRetry">再来一局</button>
@@ -929,7 +954,7 @@ let clusterTimer = 0, yellowSet = false, redSet = false, crashTimer = 0, snapTim
 let impactSpeed = 0, seqStep = 0, seqOrder = [], seqBtnEls = [], airbagOut = 0, cdValue = 30, cdLast = -1, cdRed = false;
 
 function hideAllOverlays() {
-  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay'].forEach(id => $(id).classList.add('hidden'));
+  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay', 'feedbackOverlay'].forEach(id => $(id).classList.add('hidden'));
   const fvR = $('failVideo'); if (fvR) { fvR.pause(); try { fvR.currentTime = 0; } catch (e) {} }
   orbit.th = 0; orbit.ph = 0;
 }
@@ -1041,6 +1066,7 @@ function newsEnding() {
   $('seqBox').style.display = 'none';
   AU.setEngine(0, false);
   $('newsOverlay').classList.remove('hidden');
+  reportRun('news');
 }
 function survive() {
   G.phase = 'done';
@@ -1052,11 +1078,13 @@ function survive() {
     `接管反应 <b style="float:right;color:#ffd166">${G.reaction === null ? '—' : G.reaction.toFixed(2) + ' 秒'}</b><br>` +
     `逃生顺序 <b style="float:right;color:#ffd166">3 秒内全对 ✔</b>`;
   $('surviveOverlay').classList.remove('hidden');
+  reportRun('survive');
 }
 
 /* ---------- 第一阶段结局 ---------- */
 function showResult(kind) {
   G.phase = 'done';
+  $('rankLine').textContent = '';
   AU.alarm(false); AU.setScreech(false); AU.setScream(0, false); AU.setEngine(0, false);
   $('vignette').className = ''; $('controls').style.display = 'none'; $('forceBox').style.display = 'none'; $('distBox').style.display = 'none';
   const kmh = Math.round(G.maxSpeed * KMH);
@@ -1075,6 +1103,8 @@ function showResult(kind) {
     $('resultNote').textContent = '一脚闷到底，力度冲过 1612N，刹车踏板应声而断，车辆彻底失去制动——游戏直接失败。记住：点刹控力，才是这款游戏的活路。';
   }
   $('resultOverlay').classList.remove('hidden');
+  if (kind === 'win') { reportRun('win'); if (DIFF === 'hard') submitScore(); }
+  else reportRun('snap');
 }
 
 /* ================= 输入 ================= */
@@ -1096,12 +1126,25 @@ addEventListener('keydown', e => {
   }
 });
 addEventListener('keyup', e => { if (e.code === 'Space') G.brakeHeld = false; });
-['btnStart', 'btnRetry', 'btnRetryFire', 'btnRetryNews', 'btnRetrySurvive'].forEach(id => {
+['btnRetry', 'btnRetryFire', 'btnRetryNews', 'btnRetrySurvive'].forEach(id => {
   $(id).addEventListener('click', () => { AU.init(); resetGame(); });
+});
+$('btnStart').addEventListener('click', async () => {
+  AU.init();
+  const nm = ($('menuNickname').value || '').trim();
+  const hint = $('nameHint');
+  if (nm) {
+    try {
+      const r = await postJSON('/api/brake/check-name', { name: nm });
+      if (r && r.ok === false) { hint.textContent = r.error || '昵称不可用'; hint.style.display = 'block'; return; }
+    } catch (e) {}
+  }
+  hint.style.display = 'none';
+  resetGame();
 });
 $('btnHowto').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('howtoOverlay').classList.remove('hidden'); });
 $('btnHowtoBack').addEventListener('click', () => { $('howtoOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
-$('btnRank').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('rankOverlay').classList.remove('hidden'); });
+$('btnRank').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('rankOverlay').classList.remove('hidden'); loadRank(); });
 $('btnRankBack').addEventListener('click', () => { $('rankOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
 let DIFF = localStorage.getItem('zhijia-difficulty') === 'easy' ? 'easy' : 'hard';
 function applyDiff() {
@@ -1133,6 +1176,43 @@ cvs.addEventListener('pointermove', e => { if (e.pointerId !== dragId) return; c
 const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
 cvs.addEventListener('pointerup', endDrag);
 cvs.addEventListener('pointercancel', endDrag);
+const API = 'https://deepseekchatkele.pages.dev';
+let DEVICE = 'anon';
+try { DEVICE = localStorage.getItem('zhijia:device') || ''; if (!DEVICE) { DEVICE = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); localStorage.setItem('zhijia:device', DEVICE); } } catch (e) { DEVICE = 'anon' + Math.random().toString(36).slice(2, 10); }
+try { $('menuNickname').value = localStorage.getItem('zhijia:nickname') || ''; } catch (e) {}
+$('menuNickname').addEventListener('change', () => { try { localStorage.setItem('zhijia:nickname', $('menuNickname').value.trim().slice(0, 12)); } catch (e) {} });
+function playerName() { return ($('menuNickname').value || '').trim().slice(0, 12) || '无名车手'; }
+function postJSON(path, data) { return fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }).then(r => r.json().catch(() => ({}))).catch(() => ({})); }
+function reportRun(result) {
+  postJSON('/api/zhijia/record', { nickname: playerName(), device: DEVICE, mode: DIFF, result: result, brakeTime: G.brakeTime || 0, reaction: G.reaction, maxForce: Math.round(G.maxForce || 0), maxSpeed: Math.round((G.maxSpeed || 0) * 3.6), margin: Math.max(0, G.z - POLE_Z) });
+}
+function submitScore() {
+  const el = $('rankLine'); el.textContent = '成绩同步中……';
+  postJSON('/api/zhijia/score', { nickname: playerName(), device: DEVICE, brakeTime: G.brakeTime, margin: Math.max(0, G.z - POLE_Z), reaction: G.reaction }).then(res => {
+    if (res && typeof res.score === 'number') el.textContent = '🏆 本局得分 ' + res.score + ' 分 · 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
+    else el.textContent = (res && res.error) || '成绩同步失败';
+  });
+}
+function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function loadRank() {
+  const box = $('rankList'); box.innerHTML = '<p class="rank-tip">加载中……</p>';
+  fetch(API + '/api/zhijia/leaderboard?limit=50').then(r => r.json()).then(res => {
+    const es = (res && res.entries) || [];
+    if (!es.length) { box.innerHTML = '<p class="rank-tip">还没有人上榜，来打下第一个纪录！</p>'; return; }
+    box.innerHTML = es.map((e, i) => '<div class="rank-row"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><span><b>' + (+e.brakeTime).toFixed(2) + ' 秒</b><span class="rank-sub">余量 ' + (+e.margin).toFixed(1) + ' 米</span></span></div>').join('');
+  }).catch(() => { box.innerHTML = '<p class="rank-tip">加载失败，检查网络后重试</p>'; });
+}
+$('btnFeedback').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('feedbackOverlay').classList.remove('hidden'); });
+$('btnFbBack').addEventListener('click', () => { $('feedbackOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
+$('btnFbSend').addEventListener('click', () => {
+  const t = $('fbText').value.trim(); const msg = $('fbMsg');
+  if (!t) { msg.textContent = '先写点内容吧'; return; }
+  msg.textContent = '发送中……';
+  postJSON('/api/feedback', { site: '[智驾站]', text: t }).then(res => {
+    if (res && res.ok) { msg.textContent = '已收到，谢谢反馈！'; $('fbText').value = ''; }
+    else msg.textContent = (res && res.error) || '发送失败，请稍后再试';
+  });
+});
 
 /* ================= 主循环 ================= */
 const clock = new THREE.Clock();
@@ -1192,6 +1272,7 @@ function step(dt, t) {
       G.phase = 'done';
       $('fireEndOverlay').classList.remove('hidden');
       const fv = $('failVideo'); if (fv) fv.play().catch(() => {});
+      reportRun('burned');
     }
   }
   if (ph !== 'runaway') { AU.setScream(0, false); AU.setScreech(false); }
