@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v13 -->
+<!-- zhijia v14 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -25,7 +25,6 @@
   #vignette { position:fixed; inset:0; pointer-events:none; z-index:6; opacity:0; background:radial-gradient(ellipse at center, transparent 52%, rgba(255,0,0,.5) 100%); }
   #vignette.on { animation:vigPulse .55s ease-in-out infinite; }
   @keyframes vigPulse { 0%,100% { opacity:.15; } 50% { opacity:.75; } }
-  #muteBtn { position:fixed; left:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); z-index:9; width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.25); background:rgba(10,16,28,.6); color:#fff; font-size:19px; }
 
   /* ---------- 力度条 ---------- */
   #forceBox { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom,0px) + 162px); width:min(78vw,440px); z-index:8; display:none; text-align:center; }
@@ -59,7 +58,7 @@
   /* ---------- 通用弹窗 ---------- */
   .overlay { position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center; background:rgba(3,5,10,.78); backdrop-filter:blur(5px); padding:18px; }
   .overlay.clear { background:rgba(3,5,10,.42); backdrop-filter:blur(2px); }
-  .card { width:min(92vw,520px); max-height:88vh; overflow-y:auto; background:linear-gradient(160deg,#101827,#0a0f1a); border:1px solid rgba(120,170,255,.3); border-radius:18px; padding:24px 22px; box-shadow:0 18px 60px rgba(0,0,0,.6); }
+  .card { width:min(92vw,520px); max-height:88vh; overflow-y:auto; background:linear-gradient(160deg,#101827,#0a0f1a); border:1px solid rgba(120,170,255,.3); border-radius:18px; padding:18px 22px; box-shadow:0 18px 60px rgba(0,0,0,.6); }
   .card h1 { font-size:27px; text-align:center; letter-spacing:1px; }
   .card h1 .accent { color:#ff5d5d; }
   .sub { text-align:center; font-size:13px; opacity:.72; margin-top:6px; }
@@ -67,14 +66,14 @@
   .story b { color:#ffd166; } .story .red { color:#ff8080; font-weight:700; }
   .howto { margin-top:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:12px 14px; font-size:13.5px; line-height:1.8; }
   .disclaimer { margin-top:14px; font-size:12px; line-height:1.7; color:#ffb3b3; background:rgba(255,60,60,.08); border:1px solid rgba(255,90,90,.3); border-radius:10px; padding:10px 12px; }
-  .big-btn { display:block; width:100%; margin-top:18px; padding:15px 0; font-size:18px; font-weight:800; letter-spacing:2px; color:#fff; background:linear-gradient(180deg,#e0483e,#b3231b); border:none; border-radius:12px; cursor:pointer; box-shadow:0 8px 24px rgba(220,50,40,.35); }
+  .big-btn { display:block; width:100%; margin-top:12px; padding:13px 0; font-size:18px; font-weight:800; letter-spacing:2px; color:#fff; background:linear-gradient(180deg,#e0483e,#b3231b); border:none; border-radius:12px; cursor:pointer; box-shadow:0 8px 24px rgba(220,50,40,.35); }
   .big-btn:active { transform:scale(.98); }
-  .menu-btn { display:block; width:100%; margin-top:12px; padding:14px 0; font-size:17px; font-weight:700; letter-spacing:2px; color:#dbeafe; background:rgba(38,52,80,.9); border:1px solid rgba(120,170,255,.35); border-radius:12px; cursor:pointer; }
+  .menu-btn { display:block; width:100%; margin-top:9px; padding:12px 0; font-size:17px; font-weight:700; letter-spacing:2px; color:#dbeafe; background:rgba(38,52,80,.9); border:1px solid rgba(120,170,255,.35); border-radius:12px; cursor:pointer; }
   .menu-btn:active { transform:scale(.98); }
   .menu-btn .soon { font-size:11px; color:#ffd166; border:1px solid rgba(255,209,102,.55); padding:1px 7px; border-radius:999px; margin-left:8px; vertical-align:middle; font-weight:600; letter-spacing:0; }
-  .tagline { text-align:center; margin-top:16px; font-size:15px; line-height:1.85; color:#cfd8ea; }
-  .diff-box { margin-top:16px; display:flex; flex-direction:column; gap:10px; }
-  .diff-btn { text-align:left; padding:12px 14px; border-radius:12px; border:1px solid rgba(120,170,255,.3); background:rgba(255,255,255,.04); color:#dbeafe; cursor:pointer; width:100%; }
+  .tagline { text-align:center; margin-top:10px; font-size:15px; line-height:1.85; color:#cfd8ea; }
+  .diff-box { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+  .diff-btn { text-align:left; padding:10px 14px; border-radius:12px; border:1px solid rgba(120,170,255,.3); background:rgba(255,255,255,.04); color:#dbeafe; cursor:pointer; width:100%; }
   .diff-btn:active { transform:scale(.98); }
   .diff-btn .diff-name { display:block; font-size:16.5px; font-weight:800; letter-spacing:1px; }
   .diff-btn .diff-desc { display:block; margin-top:3px; font-size:12px; opacity:.75; }
@@ -124,7 +123,6 @@
 <div id="controls">
   <button id="btnBrake">刹车<small>按住加力 · 松开泄力</small></button>
 </div>
-<button id="muteBtn">🔊</button>
 
 <div id="seqBox">
   <div class="t1">💥 车辆已撞毁 · 即将起火自燃！</div>
@@ -145,6 +143,7 @@
     <button class="big-btn" id="btnStart">开始游戏</button>
     <button class="menu-btn" id="btnHowto">🎮 游戏玩法</button>
     <button class="menu-btn" id="btnRank">🏆 排行榜<span class="soon">即将上线</span></button>
+    <button class="menu-btn" id="muteBtn">🔊 音效：开</button>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
   </div>
 </div>
@@ -286,7 +285,7 @@ const AU = {
     return this.muted;
   }
 };
-$('muteBtn').addEventListener('click', () => { $('muteBtn').textContent = AU.toggleMute() ? '🔇' : '🔊'; });
+$('muteBtn').addEventListener('click', () => { $('muteBtn').textContent = AU.toggleMute() ? '🔇 音效：关' : '🔊 音效：开'; });
 /* ================= Three 场景 ================= */
 const POLE_Z = -322, GANTRY_Z = -284.5;
 const scene = new THREE.Scene();
@@ -579,7 +578,11 @@ function buildCar(paintColor, withInterior) {
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(.08, .75, .08), trim2);
     pillar.position.set(s * .79, 1.22, -.72); pillar.rotation.z = -s * .3; pillar.rotation.x = .32; car.add(pillar);
   });
-  const liner = new THREE.Mesh(new THREE.BoxGeometry(1.66, .05, 1.5), new THREE.MeshBasicMaterial({ color: 0x0d0e10 })); liner.position.set(0, 1.46, .68); car.add(liner);
+  const lgC = document.createElement('canvas'); lgC.width = 2; lgC.height = 128;
+  const lgX = lgC.getContext('2d'); const lgG = lgX.createLinearGradient(0, 0, 0, 128);
+  lgG.addColorStop(0, '#26272e'); lgG.addColorStop(1, '#121317'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 2, 128);
+  const linerSide = new THREE.MeshBasicMaterial({ color: 0x0d0e10 });
+  const liner = new THREE.Mesh(new THREE.BoxGeometry(1.84, .05, 1.5), [linerSide, linerSide, linerSide, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(lgC) }), linerSide, linerSide]); liner.position.set(0, 1.46, .68); car.add(liner);
   /* 踏板总成（镜头空间：悬挂在仪表台下方脚窝区） */
   function pedalAssembly(px, padW, padH) {
     const grp = new THREE.Group(); grp.position.set(px, -.41, -1.22);
