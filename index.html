@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v16 -->
+<!-- zhijia v17 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -81,6 +81,7 @@
   .diff-btn.sel .diff-name { color:#ffd166; }
   .menu-row { display:flex; gap:9px; }
   .menu-btn.half { flex:1; font-size:15px; letter-spacing:0; }
+  #failVideo { width:100%; border-radius:12px; margin-top:14px; display:block; background:#000; }
   #viewBtnHud { position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); z-index:9; height:42px; padding:0 14px; border-radius:21px; border:1px solid rgba(255,255,255,.25); background:rgba(10,16,28,.6); color:#fff; font-size:14px; font-weight:700; }
   .tagline .red { color:#ff8080; font-weight:700; }
   .hidden { display:none !important; }
@@ -188,6 +189,7 @@
   <div class="endcard">
     <div class="big">🔥 游戏结束</div>
     <p class="mid" id="fireEndText">车辆起火自燃，你失去了任何挽回生命的手段。</p>
+    <video id="failVideo" src="fail.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
     <button class="big-btn" id="btnRetryFire">再来一局</button>
   </div>
 </div>
@@ -928,6 +930,8 @@ let impactSpeed = 0, seqStep = 0, seqOrder = [], seqBtnEls = [], airbagOut = 0, 
 
 function hideAllOverlays() {
   ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay'].forEach(id => $(id).classList.add('hidden'));
+  const fvR = $('failVideo'); if (fvR) { fvR.pause(); try { fvR.currentTime = 0; } catch (e) {} }
+  orbit.th = 0; orbit.ph = 0;
 }
 function resetGame() {
   Object.assign(G, { phase: 'cruise', speed: 0, z: 0, brakeHeld: false, force: 0, maxForce: 0,
@@ -1120,6 +1124,15 @@ function flipView() { VIEW = VIEW === 'outside' ? 'inside' : 'outside'; try { lo
 $('viewBtn').addEventListener('click', flipView);
 $('viewBtnHud').addEventListener('click', flipView);
 syncViewBtns();
+let orbit = { th: 0, ph: 0 };
+const cvs = renderer.domElement;
+cvs.style.touchAction = 'none';
+let dragId = null, lastX = 0, lastY = 0;
+cvs.addEventListener('pointerdown', e => { if (VIEW !== 'outside') return; dragId = e.pointerId; lastX = e.clientX; lastY = e.clientY; });
+cvs.addEventListener('pointermove', e => { if (e.pointerId !== dragId) return; const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; orbit.th = clamp(orbit.th - dx * .005, -1.25, 1.25); orbit.ph = clamp(orbit.ph + dy * .004, -.35, .5); });
+const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
+cvs.addEventListener('pointerup', endDrag);
+cvs.addEventListener('pointercancel', endDrag);
 
 /* ================= 主循环 ================= */
 const clock = new THREE.Clock();
@@ -1178,6 +1191,7 @@ function step(dt, t) {
     if (burnTimer <= 0) {
       G.phase = 'done';
       $('fireEndOverlay').classList.remove('hidden');
+      const fv = $('failVideo'); if (fv) fv.play().catch(() => {});
     }
   }
   if (ph !== 'runaway') { AU.setScream(0, false); AU.setScreech(false); }
@@ -1228,11 +1242,12 @@ function step(dt, t) {
     camera.lookAt(0, .72, -.4);
   } else if (VIEW === 'outside') {
     const drunkO = ph === 'cruise' ? 1 : .5;
+    const oR = 8.8;
     camera.position.set(
-      Math.sin(t * .43) * .05 * drunkO + (Math.random() - .5) * G.shake * .3,
-      3.05 + Math.sin(t * 1.7) * .03 * drunkO + (Math.random() - .5) * G.shake * .2,
-      G.z + 8.8);
-    camera.lookAt(0, .7, G.z - 6);
+      Math.sin(orbit.th) * oR + Math.sin(t * .43) * .05 * drunkO + (Math.random() - .5) * G.shake * .3,
+      3.05 + orbit.ph * 5 + Math.sin(t * 1.7) * .03 * drunkO + (Math.random() - .5) * G.shake * .2,
+      G.z + Math.cos(orbit.th) * oR);
+    camera.lookAt(Math.sin(orbit.th) * -3, .7, G.z - Math.cos(orbit.th) * 2 - 4);
   } else {
     const drunk = ph === 'cruise' ? 1 : (G.reaction === null ? .55 : .22);
     const swayX = Math.sin(t * .43) * .018 * drunk, swayR = Math.sin(t * .6) * .011 * drunk;
