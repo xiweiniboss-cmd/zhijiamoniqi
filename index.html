@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v6 -->
+<!-- zhijia v7 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -324,36 +324,43 @@ function buildCar(paintColor, withInterior) {
   const trim = std(0x191c21, .88), trim2 = std(0x22262e, .8);
   const fabric = std(0x212429, 1);
   /* ---- 外观 ---- */
-  const lower = new THREE.Mesh(new THREE.BoxGeometry(1.84, .5, 4.7), paint); lower.position.y = .56; car.add(lower);
-  const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.8, .22, 4.4), paint); shoulder.position.set(0, .86, .05); car.add(shoulder);
-  const hoodPivot = new THREE.Group(); hoodPivot.position.set(0, .95, -.82); car.add(hoodPivot);
+  const lower = new THREE.Mesh(new THREE.BoxGeometry(1.84, .5, 4.7), paint); lower.position.y = .5; car.add(lower);
+  const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.8, .22, 4.4), paint); shoulder.position.set(0, .82, .05); car.add(shoulder);
+  const hoodPivot = new THREE.Group(); hoodPivot.position.set(0, .91, -.82); car.add(hoodPivot);
   const hoodMesh = new THREE.Mesh(new THREE.BoxGeometry(1.68, .06, 1.42), paint); hoodMesh.position.set(0, 0, -.71); hoodPivot.add(hoodMesh);
-  const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.7, .07, .95), paint); trunk.position.set(0, .99, 1.82); car.add(trunk);
+  const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.7, .07, .95), paint); trunk.position.set(0, .95, 1.82); car.add(trunk);
   const cabinGlass = new THREE.Mesh(new THREE.BoxGeometry(1.64, .52, 2.3), glass); cabinGlass.position.set(0, 1.2, .22); car.add(cabinGlass);
   const roof = new THREE.Mesh(new THREE.BoxGeometry(1.58, .06, 2.1), paint); roof.position.set(0, 1.48, .24); car.add(roof);
   [[-.8, -.78], [.8, -.78], [-.8, 1.22], [.8, 1.22]].forEach(([x, z]) => {
     const p = new THREE.Mesh(new THREE.BoxGeometry(.09, .55, .09), paint);
     p.position.set(x, 1.2, z); p.rotation.x = z < 0 ? .3 : -.22; car.add(p);
   });
-  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.15, .15, .06), paintDark); grille.position.set(0, .6, -2.36); car.add(grille);
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.15, .15, .06), paintDark); grille.position.set(0, .56, -2.36); car.add(grille);
   [-0.62, 0.62].forEach(x => {
     const hl = new THREE.Mesh(new THREE.BoxGeometry(.44, .1, .05), new THREE.MeshBasicMaterial({ color: 0xf5ecd2 }));
-    hl.position.set(x, .7, -2.36); car.add(hl);
+    hl.position.set(x, .66, -2.36); car.add(hl);
     const tl = new THREE.Mesh(new THREE.BoxGeometry(.44, .09, .05), new THREE.MeshBasicMaterial({ color: 0xb02020 }));
-    tl.position.set(x, .74, 2.36); car.add(tl);
+    tl.position.set(x, .7, 2.36); car.add(tl);
     const mir = new THREE.Mesh(new THREE.BoxGeometry(.16, .09, .06), paint);
     mir.position.set(x * 1.58, 1.06, -.78); car.add(mir);
   });
-  const bumperF = new THREE.Mesh(new THREE.BoxGeometry(1.86, .2, .22), paintDark); bumperF.position.set(0, .34, -2.3); car.add(bumperF);
+  const bumperF = new THREE.Mesh(new THREE.BoxGeometry(1.86, .2, .22), paintDark); bumperF.position.set(0, .28, -2.3); car.add(bumperF);
   const bumperR = bumperF.clone(); bumperR.position.z = 2.3; car.add(bumperR);
+  const underPan = new THREE.Mesh(new THREE.BoxGeometry(1.7, .1, 4.4), paintDark); underPan.position.set(0, .17, 0); car.add(underPan);
+  [-.9, .9].forEach(x => {
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(.07, .3, 2.1), paintDark);
+    skirt.position.set(x, .3, 0); car.add(skirt);
+  });
+  const lipF = new THREE.Mesh(new THREE.BoxGeometry(1.86, .06, .3), paintDark); lipF.position.set(0, .15, -2.32); car.add(lipF);
+  const lipR = lipF.clone(); lipR.position.z = 2.32; car.add(lipR);
   const plate = new THREE.Mesh(new THREE.BoxGeometry(.44, .11, .02), new THREE.MeshBasicMaterial({ color: 0xdfe6ee }));
-  plate.position.set(0, .48, -2.42); car.add(plate);
+  plate.position.set(0, .44, -2.42); car.add(plate);
   const wheels = [];
   const tireMat = std(0x0b0b0d, .95), hubMat = std(0x9aa2ad, .35, .7);
   [[-.82, -1.5], [.82, -1.5], [-.82, 1.5], [.82, 1.5]].forEach(([x, z]) => {
-    const w = new THREE.Group(); w.position.set(x, .33, z);
-    const tire = new THREE.Mesh(new THREE.CylinderGeometry(.33, .33, .24, 20), tireMat); tire.rotation.z = Math.PI / 2; w.add(tire);
-    const hubc = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .25, 12), hubMat); hubc.rotation.z = Math.PI / 2; w.add(hubc);
+    const w = new THREE.Group(); w.position.set(x, .36, z);
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(.36, .36, .26, 20), tireMat); tire.rotation.z = Math.PI / 2; w.add(tire);
+    const hubc = new THREE.Mesh(new THREE.CylinderGeometry(.19, .19, .27, 12), hubMat); hubc.rotation.z = Math.PI / 2; w.add(hubc);
     car.add(w); wheels.push(w);
   });
   const refs = { group: car, hoodPivot, wheels };
