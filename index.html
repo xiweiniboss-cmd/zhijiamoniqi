@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v15 -->
+<!-- zhijia v16 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -79,6 +79,9 @@
   .diff-btn .diff-desc { display:block; margin-top:3px; font-size:12px; opacity:.75; }
   .diff-btn.sel { border-color:#ffd166; background:rgba(255,209,102,.13); box-shadow:0 0 0 1px #ffd166 inset; }
   .diff-btn.sel .diff-name { color:#ffd166; }
+  .menu-row { display:flex; gap:9px; }
+  .menu-btn.half { flex:1; font-size:15px; letter-spacing:0; }
+  #viewBtnHud { position:fixed; right:12px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); z-index:9; height:42px; padding:0 14px; border-radius:21px; border:1px solid rgba(255,255,255,.25); background:rgba(10,16,28,.6); color:#fff; font-size:14px; font-weight:700; }
   .tagline .red { color:#ff8080; font-weight:700; }
   .hidden { display:none !important; }
   #resultStats { margin-top:14px; font-size:14.5px; line-height:2; color:#cfd8ea; }
@@ -123,6 +126,7 @@
 <div id="controls">
   <button id="btnBrake">刹车<small>按住加力 · 松开泄力</small></button>
 </div>
+<button id="viewBtnHud">🚗 车外</button>
 
 <div id="seqBox">
   <div class="t1">💥 车辆已撞毁 · 即将起火自燃！</div>
@@ -143,7 +147,10 @@
     <button class="big-btn" id="btnStart">开始游戏</button>
     <button class="menu-btn" id="btnHowto">🎮 游戏玩法</button>
     <button class="menu-btn" id="btnRank">🏆 排行榜<span class="soon">即将上线</span></button>
-    <button class="menu-btn" id="muteBtn">🔊 音效：开</button>
+    <div class="menu-row">
+      <button class="menu-btn half" id="viewBtn">🚗 视角：车外</button>
+      <button class="menu-btn half" id="muteBtn">🔊 音效：开</button>
+    </div>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
   </div>
 </div>
@@ -499,10 +506,10 @@ function buildCar(paintColor, withInterior) {
   /* 仪表：宽幅液晶条 */
   const clusterCanvas = document.createElement('canvas'); clusterCanvas.width = 512; clusterCanvas.height = 128;
   const clusterTex = new THREE.CanvasTexture(clusterCanvas);
-  const binnaBack = new THREE.Mesh(new THREE.BoxGeometry(.5, .2, .03), std(0x0a0b0e, .95)); binnaBack.position.set(-.2, .07, -1.23); cockpit.add(binnaBack);
-  const binnaHood = new THREE.Mesh(new THREE.BoxGeometry(.5, .04, .2), trim2); binnaHood.position.set(-.2, .155, -1.18); binnaHood.rotation.x = .25; cockpit.add(binnaHood);
+  const binnaBack = new THREE.Mesh(new THREE.BoxGeometry(.5, .2, .03), std(0x0a0b0e, .95)); binnaBack.position.set(-.2, -.036, -1.23); cockpit.add(binnaBack);
+  const binnaHood = new THREE.Mesh(new THREE.BoxGeometry(.5, .04, .2), trim2); binnaHood.position.set(-.2, .049, -1.18); binnaHood.rotation.x = .25; cockpit.add(binnaHood);
   const clusterMesh = new THREE.Mesh(new THREE.PlaneGeometry(.38, .117), new THREE.MeshBasicMaterial({ map: clusterTex }));
-  clusterMesh.position.set(-.2, .07, -1.15); clusterMesh.rotation.x = -.1; cockpit.add(clusterMesh);
+  clusterMesh.position.set(-.2, -.036, -1.15); clusterMesh.rotation.x = -.1; cockpit.add(clusterMesh);
   
   refs.drawCluster = (speedKmh, gear) => {
     const g = clusterCanvas.getContext('2d');
@@ -1103,6 +1110,16 @@ function applyDiff() {
 $('diffEasy').addEventListener('click', () => { DIFF = 'easy'; try { localStorage.setItem('zhijia-difficulty', 'easy'); } catch (e) {} applyDiff(); });
 $('diffHard').addEventListener('click', () => { DIFF = 'hard'; try { localStorage.setItem('zhijia-difficulty', 'hard'); } catch (e) {} applyDiff(); });
 applyDiff();
+let VIEW = 'outside';
+try { if (localStorage.getItem('zhijia-view') === 'inside') VIEW = 'inside'; } catch (e) {}
+function syncViewBtns() {
+  $('viewBtn').textContent = VIEW === 'outside' ? '🚗 视角：车外' : '🕹️ 视角：车内';
+  $('viewBtnHud').textContent = VIEW === 'outside' ? '🚗 车外' : '🕹️ 车内';
+}
+function flipView() { VIEW = VIEW === 'outside' ? 'inside' : 'outside'; try { localStorage.setItem('zhijia-view', VIEW); } catch (e) {} syncViewBtns(); }
+$('viewBtn').addEventListener('click', flipView);
+$('viewBtnHud').addEventListener('click', flipView);
+syncViewBtns();
 
 /* ================= 主循环 ================= */
 const clock = new THREE.Clock();
@@ -1205,10 +1222,17 @@ function step(dt, t) {
 
   /* ---- 相机 ---- */
   G.shake *= Math.max(0, 1 - 2.6 * dt);
-  CAR.cockpit.visible = ph !== 'menu';
+  CAR.cockpit.visible = ph !== 'menu' && VIEW === 'inside';
   if (ph === 'menu') {
     camera.position.set(Math.sin(t * .28) * 4.1, 1.55 + Math.sin(t * .17) * .25, Math.cos(t * .28) * 4.1);
     camera.lookAt(0, .72, -.4);
+  } else if (VIEW === 'outside') {
+    const drunkO = ph === 'cruise' ? 1 : .5;
+    camera.position.set(
+      Math.sin(t * .43) * .05 * drunkO + (Math.random() - .5) * G.shake * .3,
+      3.05 + Math.sin(t * 1.7) * .03 * drunkO + (Math.random() - .5) * G.shake * .2,
+      G.z + 8.8);
+    camera.lookAt(0, .7, G.z - 6);
   } else {
     const drunk = ph === 'cruise' ? 1 : (G.reaction === null ? .55 : .22);
     const swayX = Math.sin(t * .43) * .018 * drunk, swayR = Math.sin(t * .6) * .011 * drunk;
