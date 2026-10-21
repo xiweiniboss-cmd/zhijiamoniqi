@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v9 -->
+<!-- zhijia v10 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -324,7 +324,7 @@ function buildCar(paintColor, withInterior) {
   const trim = std(0x191c21, .88), trim2 = std(0x22262e, .8);
   const fabric = std(0x212429, 1);
   /* ---- 外观 ---- */
-  const lower = new THREE.Mesh(new THREE.BoxGeometry(1.84, .5, 4.7), paint); lower.position.y = .5; car.add(lower);
+  const lower = new THREE.Mesh(new THREE.BoxGeometry(1.84, .64, 4.7), paint); lower.position.y = .4; car.add(lower);
   const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.8, .22, 4.4), paint); shoulder.position.set(0, .82, .05); car.add(shoulder);
   const hoodPivot = new THREE.Group(); hoodPivot.position.set(0, .91, -.82); car.add(hoodPivot);
   const hoodMesh = new THREE.Mesh(new THREE.BoxGeometry(1.68, .06, 1.42), paint); hoodMesh.position.set(0, 0, -.71); hoodPivot.add(hoodMesh);
@@ -366,12 +366,10 @@ function buildCar(paintColor, withInterior) {
   const refs = { group: car, hoodPivot, wheels };
   if (!withInterior) return refs;
   /* ---- 内饰 ---- */
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(1.7, .05, 2.7), trim); floor.position.set(0, .42, .15); car.add(floor);
-  const tub = new THREE.Mesh(new THREE.BoxGeometry(1.72, .05, 3.7), trim); tub.position.set(0, .765, -.15); car.add(tub);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(1.7, .05, 3.6), trim); floor.position.set(0, .735, -.25); car.add(floor);
   const firewall = new THREE.Mesh(new THREE.BoxGeometry(1.72, .5, .06), trim); firewall.position.set(0, .84, -1.02); firewall.rotation.x = .35; car.add(firewall);
   /* ---- 座舱（镜头空间：按画面坐标摆位，互不重叠） ---- */
   const cockpit = new THREE.Group(); refs.cockpit = cockpit;
-  const footPanel = new THREE.Mesh(new THREE.BoxGeometry(2.2, .55, .08), std(0x101216, .95)); footPanel.position.set(0, -.72, -1.45); footPanel.rotation.x = .18; cockpit.add(footPanel);
   const dash = new THREE.Mesh(new THREE.BoxGeometry(2.4, .3, .25), trim); dash.position.set(0, -.44, -1.3); dash.rotation.x = .1; cockpit.add(dash);
   const dashTop = new THREE.Mesh(new THREE.BoxGeometry(2.4, .04, .3), trim2); dashTop.position.set(0, -.285, -1.28); cockpit.add(dashTop);
   [-.62, .62].forEach(x => {
@@ -485,7 +483,7 @@ function buildCar(paintColor, withInterior) {
   refs.drawCluster(0, 'D');
   /* 方向盘 + 气囊 */
   const wheel = new THREE.Group(); wheel.position.set(-.28, -.29, -1.0); wheel.rotation.x = -.42; cockpit.add(wheel);
-  const leather = std(0x26282e, .6);
+  const leather = std(0x3d4048, .6);
   wheel.add(new THREE.Mesh(new THREE.TorusGeometry(.19, .026, 12, 36), leather));
   const ringTrim = new THREE.Mesh(new THREE.TorusGeometry(.162, .005, 8, 36), std(0x8f979f, .3, .8)); wheel.add(ringTrim);
   const wsp1 = new THREE.Mesh(new THREE.BoxGeometry(.37, .042, .026), leather); wheel.add(wsp1);
@@ -508,8 +506,9 @@ function buildCar(paintColor, withInterior) {
   });
   const column = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .3, 8), trim);
   column.position.set(-.28, -.28, -1.14); column.rotation.x = 1.1; cockpit.add(column);
-  const airbag = new THREE.Mesh(new THREE.BoxGeometry(.26, .22, .09), std(0xd8d4c8, .95));
-  airbag.position.set(-.28, -.29, -.93); airbag.scale.setScalar(.01); airbag.visible = false; cockpit.add(airbag);
+  const airbag = new THREE.Mesh(new THREE.SphereGeometry(.145, 24, 18), std(0xb9bcbf, .95));
+  const bagSeam = new THREE.Mesh(new THREE.TorusGeometry(.095, .007, 8, 28), std(0x8f9296, .9)); bagSeam.position.z = .1; airbag.add(bagSeam);
+  airbag.position.set(-.28, -.29, -.8); airbag.scale.setScalar(.01); airbag.visible = false; cockpit.add(airbag);
   refs.airbag = airbag; refs.wheel = wheel;
   /* 中控台 + 座椅 */
   const console_ = new THREE.Mesh(new THREE.BoxGeometry(.48, .2, 1.15), trim); console_.position.set(0, .6, .42); car.add(console_);
@@ -526,7 +525,7 @@ function buildCar(paintColor, withInterior) {
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(.08, .75, .08), trim2);
     pillar.position.set(s * .79, 1.22, -.72); pillar.rotation.z = -s * .3; pillar.rotation.x = .32; car.add(pillar);
   });
-  const liner = new THREE.Mesh(new THREE.BoxGeometry(1.66, .05, 1.5), std(0x141519, .95)); liner.position.set(0, 1.46, .68); car.add(liner);
+  const liner = new THREE.Mesh(new THREE.BoxGeometry(1.66, .05, 1.5), new THREE.MeshBasicMaterial({ color: 0x0d0e10 })); liner.position.set(0, 1.46, .68); car.add(liner);
   [-.42, .42].forEach(x => {
     const visor = new THREE.Mesh(new THREE.BoxGeometry(.34, .02, .22), trim2);
     visor.position.set(x, 1.45, .15); visor.rotation.x = .05; car.add(visor);
@@ -537,19 +536,21 @@ function buildCar(paintColor, withInterior) {
   const footwell = new THREE.Mesh(new THREE.BoxGeometry(.64, .52, .05), paintDark);
   footwell.position.set(-.3, .4, -.9); footwell.rotation.x = .22; car.add(footwell);
   function pedalAssembly(x, padW, padH) {
-    const grp = new THREE.Group(); grp.position.set(x, -.58, -.9);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(.05, .3, .04), std(0x8a9096, .5, .3));
+    const grp = new THREE.Group(); grp.position.set(x, .82, -.92);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.08, .34, .05), std(0x9aa0a8, .5, .3));
     arm.position.set(0, .18, -.08); arm.rotation.x = .35; grp.add(arm);
     const pad = new THREE.Mesh(new THREE.BoxGeometry(padW, padH, .035), std(0x596068, .55, .15));
+    const face = new THREE.Mesh(new THREE.BoxGeometry(padW * .92, padH * .8, .006), new THREE.MeshBasicMaterial({ color: 0xaeb4bc }));
+    face.position.z = .021; pad.add(face);
     pad.rotation.x = -.32; grp.add(pad);
     for (let i = -1; i <= 1; i++) {
       const rib = new THREE.Mesh(new THREE.BoxGeometry(padW * .8, .013, .008), paintDark);
       rib.position.set(0, i * padH * .27, .021); rib.rotation.x = -.32; grp.add(rib);
     }
-    cockpit.add(grp); return grp;
+    car.add(grp); return grp;
   }
-  const brakePedal = pedalAssembly(-.29, .22, .1);
-  const accelPedal = pedalAssembly(-.15, .09, .26);
+  const brakePedal = pedalAssembly(-.5, .38, .17);
+  const accelPedal = pedalAssembly(-.3, .16, .42);
   refs.brakePedal = brakePedal; refs.accelPedal = accelPedal;
   /* 挡风裂纹 */
   const crackMat = new THREE.MeshBasicMaterial({ map: crackTexture(), transparent: true, opacity: 0, depthWrite: false });
@@ -557,7 +558,7 @@ function buildCar(paintColor, withInterior) {
   crack.position.set(-.15, 1.18, -.93); crack.rotation.x = -.5; car.add(crack);
   refs.crackMat = crackMat;
   const cabinLight = new THREE.PointLight(0xffd9a8, 3.2, 5, 1.2); cabinLight.position.set(0, 1.12, -.25); car.add(cabinLight);
-  const footLight = new THREE.PointLight(0xffd9a8, 2.6, 2.2, 1.2); footLight.position.set(-.3, .8, -.28); car.add(footLight);
+  const footLight = new THREE.PointLight(0xffd9a8, 3.4, 2.2, 1.2); footLight.position.set(-.4, 1.0, -.65); car.add(footLight);
   return refs;
 }
 const CAR = buildCar(0x2b3f5f, true);
@@ -879,7 +880,7 @@ function resetGame() {
   CAR.hoodPivot.rotation.x = 0;
   CAR.airbag.visible = false; CAR.airbag.scale.setScalar(.01); airbagOut = 0;
   CAR.crackMat.opacity = 0;
-  CAR.brakePedal.rotation.set(0, 0, 0); CAR.brakePedal.position.set(-.29, -.58, -.9);
+  CAR.brakePedal.rotation.set(0, 0, 0); CAR.brakePedal.position.set(-.5, .82, -.92);
   CAR.setScreen('normal'); CAR.stripMat.color.setHex(0x2f7bff);
   poleGrp.rotation.set(0, 0, 0);
   particleMode = 'off';
@@ -913,7 +914,7 @@ function triggerFailure() {
 function pedalSnap() {
   G.phase = 'snap'; snapTimer = 1.2; G.force = 0;
   AU.crack(); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
-  CAR.brakePedal.rotation.x = -1.0; CAR.brakePedal.position.y = -.64;
+  CAR.brakePedal.rotation.x = -1.0; CAR.brakePedal.position.y = .76;
   $('banner').textContent = '💥 力度超过 1612N · 刹车踏板断裂！';
   $('vignette').className = '';
 }
@@ -1123,7 +1124,7 @@ function step(dt, t) {
   if ((ph === 'crash' || ph === 'seq' || ph === 'burned' || ph === 'done') && airbagOut < 1 && impactSpeed > 0) {
     airbagOut = Math.min(1, airbagOut + dt * 7);
     CAR.airbag.visible = true;
-    CAR.airbag.scale.setScalar(Math.max(.01, airbagOut));
+    CAR.airbag.scale.set(Math.max(.01, airbagOut), Math.max(.01, airbagOut * .82), Math.max(.01, airbagOut * .55));
     CAR.crackMat.opacity = airbagOut * .95;
     CAR.hoodPivot.rotation.x = airbagOut * .55;
   }
@@ -1156,11 +1157,11 @@ function step(dt, t) {
   /* ---- 踏板动画 ---- */
   if (ph === 'cruise' || ph === 'runaway') {
     const ratio = clamp(G.force / FORCE_MAX, 0, 1);
-    CAR.brakePedal.position.y = -.58 - ratio * .02;
-    CAR.brakePedal.position.z = -.9 - ratio * .025;
+    CAR.brakePedal.position.y = .82 - ratio * .02;
+    CAR.brakePedal.position.z = -.92 - ratio * .03;
     const stuck = ph === 'runaway' && G.force <= 5;
-    CAR.accelPedal.position.y = stuck ? -.615 : -.58;
-    CAR.accelPedal.position.z = stuck ? -.925 : -.9;
+    CAR.accelPedal.position.y = stuck ? .785 : .82;
+    CAR.accelPedal.position.z = stuck ? -.95 : -.92;
   }
 
   /* ---- HUD ---- */
