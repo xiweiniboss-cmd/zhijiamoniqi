@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v31 -->
+<!-- zhijia v32 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -120,6 +120,14 @@
   .endcard .big { font-size:34px; font-weight:900; text-shadow:0 3px 18px rgba(0,0,0,.9); }
   .endcard .mid { margin-top:14px; font-size:16px; line-height:1.8; text-shadow:0 2px 10px rgba(0,0,0,.9); }
   .endcard .big-btn { max-width:320px; margin-left:auto; margin-right:auto; }
+  .score-box { margin-top:12px; }
+  .score-box input { flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.35); background:rgba(10,14,24,.85); color:#fff; font-size:15px; }
+  #btnSubmitScore, #btnSubmitSv { padding:10px 16px; border:none; border-radius:10px; background:linear-gradient(180deg,#ffd166,#f5a623); color:#231600; font-weight:800; font-size:15px; cursor:pointer; white-space:nowrap; }
+  #btnSubmitScore:disabled, #btnSubmitSv:disabled { opacity:.55; }
+  #scoreHint, #svHint { font-size:13px; min-height:18px; margin-top:6px; }
+  #svScoreLine { font-size:15px; color:#ffd166; margin:0 0 4px; }
+  .rank-right { display:flex; align-items:center; }
+  .rank-detail-btn { margin-left:10px; padding:3px 12px; font-size:12.5px; border-radius:999px; border:1px solid rgba(255,209,102,.55); background:rgba(255,209,102,.12); color:#ffd166; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -191,9 +199,17 @@
 <div class="overlay hidden" id="rankOverlay">
   <div class="card">
     <h1>🏆 排行榜</h1>
-    <p class="story" style="text-align:center; font-size:13.5px;">仅「遥遥领先」困难模式的胜利成绩上榜<br>按得分排名 · 第一阶段刹停成功奖励 +1612 分</p>
+    <p class="story" style="text-align:center; font-size:13.5px;">仅「遥遥领先」困难模式的胜利成绩上榜<br>按得分排名 · 点「详情」查看玩家数据</p>
     <div id="rankList"><p class="rank-tip">加载中……</p></div>
     <button class="big-btn" id="btnRankBack">返回</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="rankDetailOverlay">
+  <div class="card">
+    <h1>📋 玩家详情</h1>
+    <div id="rankDetailBody" style="font-size:15px; line-height:2.1; color:#cfd8ea; text-align:left;"></div>
+    <button class="big-btn" id="btnRankDetailBack">返回</button>
   </div>
 </div>
 
@@ -220,6 +236,13 @@
     <h1 id="resultTitle">结果</h1>
     <div id="resultStats"></div>
     <div id="rankLine"></div>
+    <div id="scoreBox" class="score-box" style="display:none">
+      <div class="name-row">
+        <input id="scoreName" maxlength="12" placeholder="填写名字，成绩计入排行榜" autocomplete="off">
+        <button id="btnSubmitScore">提交成绩</button>
+      </div>
+      <div id="scoreHint"></div>
+    </div>
     <p id="resultNote"></p>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnRetry">再来一局</button>
@@ -242,6 +265,14 @@
     <h1 style="font-size:24px;">🚪 你活下来了</h1>
     <p class="story" style="font-size:16.5px; text-align:center; margin-top:18px;">你虽留住了自己的生命<br>但接下来「帮帮我」环节<br>你可要挺住咯……</p>
     <div id="surviveStats" style="margin-top:14px; font-size:14px; line-height:2; color:#cfd8ea;"></div>
+    <div id="svScoreBox" class="score-box" style="display:none">
+      <p id="svScoreLine"></p>
+      <div class="name-row">
+        <input id="svName" maxlength="12" placeholder="填写名字，成绩计入排行榜" autocomplete="off">
+        <button id="btnSubmitSv">提交成绩</button>
+      </div>
+      <div id="svHint"></div>
+    </div>
     <video id="surviveVideo" src="survive.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnRetrySurvive">再来一局</button>
@@ -271,7 +302,7 @@ const KMH = 3.6;
 
 /* ================= 声音（WebAudio 合成） ================= */
 const AU = {
-  ctx:null, master:null, engineOsc:null, engineGain:null, muted:false, alarmTimer:null, screechGain:null, screamOsc:null, screamGain:null,
+  ctx:null, master:null, engineOsc:null, engineGain:null, muted:false, alarmTimer:null, screechGain:null, screamOsc:null, screamGain:null, brakeGain:null,
   init(){
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
@@ -285,6 +316,10 @@ const AU = {
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 9;
     this.screechGain = ctx.createGain(); this.screechGain.gain.value = 0;
     src.connect(bp); bp.connect(this.screechGain); this.screechGain.connect(this.master); src.start();
+    this.brakeGain = ctx.createGain(); this.brakeGain.gain.value = 0; this.brakeGain.connect(this.master);
+    fetch('audio/brake.mp3').then(r => r.arrayBuffer()).then(ab => ctx.decodeAudioData(ab)).then(buf => {
+      const bs = ctx.createBufferSource(); bs.buffer = buf; bs.loop = true; bs.connect(this.brakeGain); bs.start();
+    }).catch(() => {});
     this.screamOsc = ctx.createOscillator(); this.screamOsc.type = 'sawtooth'; this.screamOsc.frequency.value = 300;
     const sf = ctx.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 1600;
     this.screamGain = ctx.createGain(); this.screamGain.gain.value = 0;
@@ -301,10 +336,15 @@ const AU = {
     this.engineOsc.frequency.setTargetAtTime(52 + speedMs * 2.6, t, .08);
     this.engineGain.gain.setTargetAtTime(on ? .05 + speedMs * .0016 : 0, t, .12);
   },
-  setScreech(on){ if (this.ctx) this.screechGain.gain.setTargetAtTime(on ? .1 : 0, this.ctx.currentTime, .06); },
+  setScreech(on){ if (!this.ctx || this.brakeGain) return; this.screechGain.gain.setTargetAtTime(on ? .1 : 0, this.ctx.currentTime, .06); },
   setScream(ratio, on){
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
+    if (this.brakeGain) { // 踩刹车音效：旧刹车模拟器的「哇啊啊啊」（audio/brake.mp3 循环）
+      this.brakeGain.gain.setTargetAtTime(on ? .9 : 0, t, .05);
+      this.screamGain.gain.setTargetAtTime(0, t, .05);
+      return;
+    }
     this.screamOsc.frequency.setTargetAtTime(280 + ratio * 620 + Math.sin(t * 31) * 24, t, .03);
     this.screamGain.gain.setTargetAtTime(on ? .028 + ratio * .05 : 0, t, .05);
   },
@@ -337,9 +377,18 @@ const AU = {
   toggleMute(){
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : .5;
+    Object.keys(SFX).forEach(k => { SFX[k].muted = this.muted; });
     return this.muted;
   }
 };
+/* ---------- 录制音效（沿用旧刹车模拟器素材） ---------- */
+const SFX = {
+  success: new Audio('audio/success.mp3'), // 遥遥领先：第一阶段刹停成功 / 第二阶段急救成功
+  fail: new Audio('audio/fail.mp3'),       // 按照华为的质量标准：第二阶段急救失败
+  crash: new Audio('audio/crash.mp3')      // 撞上了撞上了：第一阶段刹车踏板断裂
+};
+Object.keys(SFX).forEach(k => { SFX[k].preload = 'auto'; });
+function playSfx(a) { if (AU.muted) return; try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 $('muteBtn').addEventListener('click', () => { $('muteBtn').textContent = AU.toggleMute() ? '🔇 音效：关' : '🔊 音效：开'; });
 /* ================= Three 场景 ================= */
 const POLE_Z = -322, GANTRY_Z = -284.5;
@@ -1113,7 +1162,7 @@ let clusterTimer = 0, yellowSet = false, redSet = false, crashTimer = 0, snapTim
 let impactSpeed = 0, seqStep = 0, seqOrder = [], seqBtnEls = [], airbagOut = 0, cdValue = 30, cdLast = -1, cdRed = false;
 
 function hideAllOverlays() {
-  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay', 'feedbackOverlay', 'noticeOverlay'].forEach(id => $(id).classList.add('hidden'));
+  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay', 'rankDetailOverlay', 'feedbackOverlay', 'noticeOverlay'].forEach(id => $(id).classList.add('hidden'));
   const fvR = $('failVideo'); if (fvR) { fvR.pause(); try { fvR.currentTime = 0; } catch (e) {} }
   const svR = $('surviveVideo'); if (svR) { svR.pause(); try { svR.currentTime = 0; } catch (e) {} }
   orbit.th = 0; orbit.ph = 0;
@@ -1160,7 +1209,7 @@ function triggerFailure() {
 
 function pedalSnap() {
   G.phase = 'snap'; snapTimer = 1.2; G.force = 0;
-  AU.crack(); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
+  playSfx(SFX.crash); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
   CAR.brakePedal.rotation.x = -1.0; CAR.brakePedal.position.y = -.48;
   $('banner').textContent = '💥 力度超过 1612N · 刹车踏板断裂！';
   $('vignette').className = '';
@@ -1216,7 +1265,7 @@ function fireGameOver(reason) {
   $('seqBox').style.display = 'none';
   $('fireEndText').textContent = reason + '车辆起火自燃，你失去了任何挽回生命的手段。';
   $('banner').textContent = '🔥 车辆起火自燃！';
-  AU.setEngine(0, false);
+  AU.setEngine(0, false); playSfx(SFX.fail);
 }
 function newsEnding() {
   G.phase = 'done';
@@ -1224,7 +1273,7 @@ function newsEnding() {
   setFlames(false, 0);
   $('fireOverlay').style.opacity = 0;
   $('seqBox').style.display = 'none';
-  AU.setEngine(0, false);
+  AU.setEngine(0, false); playSfx(SFX.fail);
   $('newsOverlay').classList.remove('hidden');
   reportRun('news');
 }
@@ -1232,13 +1281,15 @@ function survive() {
   G.phase = 'done';
   particleMode = 'smoke';
   $('seqBox').style.display = 'none';
-  AU.setEngine(0, false); AU.chime();
+  G.escapeTime = Math.round(Math.max(0, Math.min(3, 3 - G.seqT)) * 1000) / 1000;
+  AU.setEngine(0, false); playSfx(SFX.success);
   $('surviveStats').innerHTML =
     `撞击速度 <b style="float:right;color:#ffd166">${Math.round(impactSpeed * KMH)} km/h</b><br>` +
     `接管反应 <b style="float:right;color:#ffd166">${G.reaction === null ? '—' : G.reaction.toFixed(2) + ' 秒'}</b><br>` +
     `逃生顺序 <b style="float:right;color:#ffd166">3 秒内全对 ✔</b>`;
   $('surviveOverlay').classList.remove('hidden');
   const sv = $('surviveVideo'); if (sv) sv.play().catch(() => {});
+  setupSvScoreBox();
   reportRun('survive');
 }
 
@@ -1257,14 +1308,14 @@ function showResult(kind) {
     $('resultNote').textContent = margin >= 25 ? '点刹控力稳如老司机，力度始终没碰 1612N 红线，稳稳停住——游戏胜利！可惜现实中，醉驾的人不会有这种手。'
       : margin >= 5 ? '有惊无险！杆子就在前方，你用点刹把力度死死压在断裂线以下，成功刹停，游戏胜利！'
       : '车头几乎贴上杆子才停住！再多一分力度踏板就断了，再少一分就撞上去了——极限胜利！';
-    AU.chime();
+    playSfx(SFX.success);
   } else {
     $('resultTitle').textContent = '💥 踏板断裂 · 游戏失败';
     $('resultStats').innerHTML = `断裂力度 <b>1612 N</b><br>最高速度 <b>${kmh} km/h</b><br>接管反应 <b>${react}</b>`;
     $('resultNote').textContent = '一脚闷到底，力度冲过 1612N，刹车踏板应声而断，车辆彻底失去制动——游戏直接失败。记住：点刹控力，才是这款游戏的活路。';
   }
   $('resultOverlay').classList.remove('hidden');
-  if (kind === 'win') { reportRun('win'); if (DIFF === 'hard') submitScore(); }
+  if (kind === 'win') { reportRun('win'); setupScoreBox(); }
   else reportRun('snap');
 }
 
@@ -1347,22 +1398,40 @@ $('menuNickname').addEventListener('change', () => { try { localStorage.setItem(
 function playerName() { return ($('menuNickname').value || '').trim().slice(0, 12) || '无名车手'; }
 function postJSON(path, data) { return fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }).then(r => r.json().catch(() => ({}))).catch(() => ({})); }
 function reportRun(result) {
-  postJSON('/api/zhijia/record', { nickname: playerName(), device: DEVICE, mode: DIFF, result: result, brakeTime: G.brakeTime || 0, reaction: G.reaction, maxForce: Math.round(G.maxForce || 0), maxSpeed: Math.round((G.maxSpeed || 0) * 3.6), margin: Math.max(0, G.z - POLE_Z) });
+  postJSON('/api/zhijia/record', { nickname: playerName(), device: DEVICE, mode: DIFF, result: result, brakeTime: G.brakeTime || 0, reaction: G.reaction, maxForce: Math.round(G.maxForce || 0), maxSpeed: Math.round((G.maxSpeed || 0) * 3.6), margin: Math.max(0, G.z - POLE_Z), escapeTime: +(G.escapeTime || 0).toFixed(3) });
 }
-function submitScore() {
+function submitScore(name) {
   const el = $('rankLine'); el.textContent = '成绩同步中……';
-  sendScore({ nickname: playerName(), device: DEVICE, brakeTime: G.brakeTime, margin: Math.max(0, G.z - POLE_Z), reaction: G.reaction }, 0);
+  sendScore({ nickname: name, device: DEVICE, brakeTime: G.brakeTime, margin: Math.max(0, G.z - POLE_Z), reaction: G.reaction }, 0);
 }
+function setupScoreBox() {
+  const box = $('scoreBox');
+  if (DIFF !== 'hard') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const pn = playerName();
+  $('scoreName').value = pn === '无名车手' ? '' : pn;
+  $('scoreHint').textContent = '';
+  const btn = $('btnSubmitScore'); btn.disabled = false; btn.textContent = '提交成绩';
+}
+$('btnSubmitScore').addEventListener('click', () => {
+  const name = ($('scoreName').value || '').trim().slice(0, 12);
+  if (!name) { $('scoreHint').style.color = '#ff9a8a'; $('scoreHint').textContent = '请先填写名字，成绩才能计入排行榜'; return; }
+  $('scoreHint').textContent = '';
+  const btn = $('btnSubmitScore'); btn.disabled = true; btn.textContent = '提交中……';
+  submitScore(name);
+});
 // 成绩同步失败（配额/限流/网络）时自动重试；仍失败则暂存本地，下次打开游戏自动补传，避免成绩丢失
 function sendScore(p, attempt) {
   postJSON('/api/zhijia/score', p).then(res => {
     if (res && typeof res.score === 'number') {
       clearPendingScore(p);
+      const sb = $('btnSubmitScore'); if (sb) sb.textContent = '已提交 ✓';
       const el = $('rankLine'); if (el) el.textContent = '🏆 本局得分 ' + res.score + ' 分（基础 ' + Math.round(100000 / p.brakeTime) + ' + 第一阶段刹停奖励 1612）· 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
     } else if (attempt < 2) {
       setTimeout(() => sendScore(p, attempt + 1), attempt === 0 ? 2000 : 5000);
     } else {
       savePendingScore(p);
+      const sb = $('btnSubmitScore'); if (sb) { sb.disabled = false; sb.textContent = '重新提交'; }
       const el = $('rankLine'); if (el) el.textContent = ((res && res.error) || '成绩同步失败') + '（已暂存，下次打开游戏自动补传）';
     }
   });
@@ -1392,18 +1461,104 @@ function flushPendingScore() {
   });
 }
 flushPendingScore();
+
+/* ---------- 第二阶段急救成绩（剩余时间每 0.01 秒 1000 分，服务器复算） ---------- */
+function escScoreOf(escapeTime) { return Math.max(1, Math.round((3 - escapeTime) * 100)) * 1000; }
+function setupSvScoreBox() {
+  const box = $('svScoreBox');
+  if (DIFF !== 'hard') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const remain = Math.max(0, 3 - (G.escapeTime || 0));
+  $('svScoreLine').innerHTML = '🚑 急救得分 <b>' + escScoreOf(G.escapeTime || 0) + ' 分</b>（剩余 ' + remain.toFixed(2) + ' 秒 × 1000 分/0.01 秒）';
+  const pn = playerName();
+  $('svName').value = pn === '无名车手' ? '' : pn;
+  $('svHint').textContent = '';
+  const btn = $('btnSubmitSv'); btn.disabled = false; btn.textContent = '提交成绩';
+}
+$('btnSubmitSv').addEventListener('click', () => {
+  const name = ($('svName').value || '').trim().slice(0, 12);
+  if (!name) { $('svHint').style.color = '#ff9a8a'; $('svHint').textContent = '请先填写名字，成绩才能计入排行榜'; return; }
+  $('svHint').textContent = '';
+  const btn = $('btnSubmitSv'); btn.disabled = true; btn.textContent = '提交中……';
+  sendScore2({ nickname: name, device: DEVICE, escapeTime: +(G.escapeTime || 0).toFixed(3), reaction: G.reaction }, 0);
+});
+function sendScore2(p, attempt) {
+  postJSON('/api/zhijia/score2', p).then(res => {
+    if (res && typeof res.score === 'number') {
+      clearPendingScore2(p);
+      $('svScoreLine').innerHTML = '🚑 急救得分 <b>' + res.score + ' 分</b> · 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
+      const btn = $('btnSubmitSv'); if (btn) btn.textContent = '已提交 ✓';
+    } else if (attempt < 2) {
+      setTimeout(() => sendScore2(p, attempt + 1), attempt === 0 ? 2000 : 5000);
+    } else {
+      savePendingScore2(p);
+      $('svHint').style.color = '#ff9a8a';
+      $('svHint').textContent = ((res && res.error) || '成绩同步失败') + '（已暂存，下次打开游戏自动补传）';
+      const btn = $('btnSubmitSv'); if (btn) { btn.disabled = false; btn.textContent = '重新提交'; }
+    }
+  });
+}
+function savePendingScore2(p) {
+  try {
+    const sc = escScoreOf(p.escapeTime);
+    const old = JSON.parse(localStorage.getItem('zhijia:pending-score2') || 'null');
+    if (!old || sc > (old._s || 0)) { const q = Object.assign({}, p, { _s: sc, _f: 0 }); localStorage.setItem('zhijia:pending-score2', JSON.stringify(q)); }
+  } catch (e) {}
+}
+function clearPendingScore2(p) {
+  try {
+    const old = JSON.parse(localStorage.getItem('zhijia:pending-score2') || 'null');
+    if (old && escScoreOf(p.escapeTime) >= (old._s || 0)) localStorage.removeItem('zhijia:pending-score2');
+  } catch (e) {}
+}
+function flushPendingScore2() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem('zhijia:pending-score2') || 'null'); } catch (e) {}
+  if (!p || !(p.escapeTime > 0)) return;
+  const q = { nickname: p.nickname, device: p.device, escapeTime: p.escapeTime, reaction: p.reaction };
+  postJSON('/api/zhijia/score2', q).then(res => {
+    if (res && typeof res.score === 'number') { clearPendingScore2(p); return; }
+    try { p._f = (p._f || 0) + 1; if (p._f > 30) localStorage.removeItem('zhijia:pending-score2'); else localStorage.setItem('zhijia:pending-score2', JSON.stringify(p)); } catch (e) {}
+  });
+}
+flushPendingScore2();
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+let rankEntries = [];
 function loadRank() {
   const box = $('rankList'); box.innerHTML = '<p class="rank-tip">加载中……</p>';
   fetch(API + '/api/zhijia/leaderboard?limit=50').then(r => r.json()).then(res => {
     const es = (res && res.entries) || [];
+    rankEntries = es;
     if (!es.length) { box.innerHTML = '<p class="rank-tip">还没有人上榜，来打下第一个纪录！</p>'; return; }
-    box.innerHTML = es.map((e, i) => {
-      const react = (typeof e.reaction === 'number' && e.reaction >= 0) ? e.reaction.toFixed(2) + ' 秒' : '—';
-      return '<div class="rank-row"><div class="rank-top"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><b>' + (e.score | 0) + ' 分</b></div><div class="rank-detail">第一阶段刹停成功 · 用时 ' + (+e.brakeTime).toFixed(2) + ' 秒 · 反应 ' + react + ' · 余量 ' + (+e.margin).toFixed(1) + ' 米</div></div>';
-    }).join('');
+    box.innerHTML = es.map((e, i) => '<div class="rank-row"><div class="rank-top"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><span class="rank-right"><b>' + (e.score | 0) + ' 分</b><button class="rank-detail-btn" data-idx="' + i + '">详情</button></span></div></div>').join('');
+    box.querySelectorAll('.rank-detail-btn').forEach(btn => btn.addEventListener('click', () => openRankDetail(+btn.getAttribute('data-idx'))));
   }).catch(() => { box.innerHTML = '<p class="rank-tip">加载失败，检查网络后重试</p>'; });
 }
+function openRankDetail(i) {
+  const e = rankEntries[i]; if (!e) return;
+  const when = e.ts ? new Date(e.ts).toLocaleString('zh-CN', { hour12: false }) : '—';
+  const react = (typeof e.reaction === 'number' && e.reaction >= 0) ? e.reaction.toFixed(2) + ' 秒' : '—';
+  let rows;
+  if (e.stage === 2) {
+    const used = +e.escapeTime || 0;
+    rows = '阶段 <b style="float:right;color:#ffd166">第二阶段 · 急救成功</b><br>' +
+      '急救用时 <b style="float:right;color:#ffd166">' + used.toFixed(2) + ' 秒</b><br>' +
+      '剩余时间 <b style="float:right;color:#ffd166">' + Math.max(0, 3 - used).toFixed(2) + ' 秒</b><br>' +
+      '接管反应 <b style="float:right;color:#ffd166">' + react + '</b>';
+  } else {
+    rows = '阶段 <b style="float:right;color:#ffd166">第一阶段 · 刹停成功</b><br>' +
+      '刹停用时 <b style="float:right;color:#ffd166">' + (+e.brakeTime).toFixed(2) + ' 秒</b><br>' +
+      '接管反应 <b style="float:right;color:#ffd166">' + react + '</b><br>' +
+      '停车余量 <b style="float:right;color:#ffd166">' + (+e.margin).toFixed(1) + ' 米</b>';
+  }
+  $('rankDetailBody').innerHTML =
+    '玩家 <b style="float:right;color:#ffd166">' + escHtml(e.nickname) + '</b><br>' +
+    '得分 <b style="float:right;color:#ffd166">' + (e.score | 0) + ' 分</b><br>' + rows + '<br>' +
+    '上榜时间 <b style="float:right;color:#ffd166">' + when + '</b>';
+  $('rankOverlay').classList.add('hidden');
+  $('rankDetailOverlay').classList.remove('hidden');
+}
+$('btnRankDetailBack').addEventListener('click', () => { $('rankDetailOverlay').classList.add('hidden'); $('rankOverlay').classList.remove('hidden'); });
 $('btnFeedback').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('feedbackOverlay').classList.remove('hidden'); });
 $('btnFbBack').addEventListener('click', () => { $('feedbackOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
 function backToMenu() {
