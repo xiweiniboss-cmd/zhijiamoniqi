@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v22 -->
+<!-- zhijia v23 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -680,8 +680,6 @@ function buildCar(paintColor, withInterior) {
   /* 仪表：宽幅液晶条 */
   const clusterCanvas = document.createElement('canvas'); clusterCanvas.width = 512; clusterCanvas.height = 128;
   const clusterTex = new THREE.CanvasTexture(clusterCanvas);
-  const binnaBack = new THREE.Mesh(new THREE.BoxGeometry(.5, .2, .03), std(0x0a0b0e, .95)); binnaBack.position.set(-.2, -.036, -1.23); cockpit.add(binnaBack);
-  const binnaHood = new THREE.Mesh(new THREE.BoxGeometry(.5, .04, .2), trim2); binnaHood.position.set(-.2, .049, -1.18); binnaHood.rotation.x = .25; cockpit.add(binnaHood);
   const clusterMesh = new THREE.Mesh(new THREE.PlaneGeometry(.38, .117), new THREE.MeshBasicMaterial({ map: clusterTex }));
   clusterMesh.position.set(-.2, -.036, -1.15); clusterMesh.rotation.x = -.1; cockpit.add(clusterMesh);
   
@@ -756,8 +754,6 @@ function buildCar(paintColor, withInterior) {
   [-1, 1].forEach(s => {
     const door = new THREE.Mesh(new THREE.BoxGeometry(.05, .52, 2), trim); door.position.set(s * .86, .82, .12); car.add(door);
     const arm = new THREE.Mesh(new THREE.BoxGeometry(.09, .06, .7), trim2); arm.position.set(s * .83, .92, .18); car.add(arm);
-    const pillar = new THREE.Mesh(new THREE.BoxGeometry(.07, .5, .06), trim2);
-    pillar.position.set(s * .74, 1.06, -.70); pillar.rotation.x = .85; car.add(pillar);
   });
   const lgC = document.createElement('canvas'); lgC.width = 2; lgC.height = 128;
   const lgX = lgC.getContext('2d'); const lgG = lgX.createLinearGradient(0, 0, 0, 128);
