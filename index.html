@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v30 -->
+<!-- zhijia v31 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -88,8 +88,10 @@
   .name-row #menuNickname { margin-top:0; flex:1; }
   #btnNameOk { padding:0 20px; border-radius:12px; border:1px solid rgba(255,209,102,.55); background:rgba(255,209,102,.14); color:#ffd166; font-size:15.5px; font-weight:800; cursor:pointer; }
   #rankList { margin-top:14px; max-height:46vh; overflow-y:auto; }
-  .rank-row { display:flex; justify-content:space-between; align-items:baseline; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.07); font-size:15px; }
+  .rank-row { display:flex; flex-direction:column; gap:2px; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.07); font-size:15px; }
   .rank-row b { color:#ffd166; font-variant-numeric:tabular-nums; }
+  .rank-top { display:flex; justify-content:space-between; align-items:baseline; }
+  .rank-detail { color:#8fa3c8; font-size:12px; }
   .rank-sub { color:#8fa3c8; font-size:12px; margin-left:8px; }
   .rank-tip { text-align:center; color:#8fa3c8; font-size:14px; padding:16px 0; }
   #rankLine { margin-top:10px; font-size:14px; color:#9fd0ff; text-align:center; min-height:20px; line-height:1.6; }
@@ -151,8 +153,7 @@
 
 <div class="overlay" id="startOverlay">
   <div class="card">
-    <h1>《智驾<span class="accent">接管</span>模拟器》<span class="tag">第二款游戏</span></h1>
-    <p class="sub">刹车模拟器 · 续作</p>
+    <h1>《智驾<span class="accent">接管</span>模拟器》</h1>
     <p class="tagline">你喝了很多酒，却把命交给了自动驾驶——<br>快到路口时，<span class="red">智驾突然失灵</span>，油门锁死飙到 <b style="color:#ffd166" id="tagSpeed">139km/h</b>！<br>能不能活下来，就看你接管的这一下。</p>
     <div class="name-row">
       <input id="menuNickname" maxlength="12" placeholder="输入昵称（上榜用）" autocomplete="off">
@@ -166,6 +167,7 @@
     <button class="big-btn" id="btnStart">开始游戏</button>
     <button class="menu-btn" id="btnHowto">🎮 游戏玩法</button>
     <button class="menu-btn" id="btnRank">🏆 排行榜</button>
+    <button class="menu-btn" id="btnNotice">📢 公告</button>
     <div class="menu-row">
       <button class="menu-btn half" id="viewBtn">🚗 视角：车外</button>
       <button class="menu-btn half" id="muteBtn">🔊 音效：开</button>
@@ -189,9 +191,17 @@
 <div class="overlay hidden" id="rankOverlay">
   <div class="card">
     <h1>🏆 排行榜</h1>
-    <p class="story" style="text-align:center; font-size:13.5px;">仅「遥遥领先」困难模式的胜利成绩上榜<br>按刹车用时排名 · 用时越短名次越高</p>
+    <p class="story" style="text-align:center; font-size:13.5px;">仅「遥遥领先」困难模式的胜利成绩上榜<br>按得分排名 · 第一阶段刹停成功奖励 +1612 分</p>
     <div id="rankList"><p class="rank-tip">加载中……</p></div>
     <button class="big-btn" id="btnRankBack">返回</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="noticeOverlay">
+  <div class="card">
+    <h1>📢 游戏公告</h1>
+    <div class="howto">1. 本站已正式上线，原刹车模拟器已下架。<br><br>2. 后续功能陆续制作中，欢迎使用反馈系统反馈。</div>
+    <button class="big-btn" id="btnNoticeBack">返回</button>
   </div>
 </div>
 
@@ -1103,7 +1113,7 @@ let clusterTimer = 0, yellowSet = false, redSet = false, crashTimer = 0, snapTim
 let impactSpeed = 0, seqStep = 0, seqOrder = [], seqBtnEls = [], airbagOut = 0, cdValue = 30, cdLast = -1, cdRed = false;
 
 function hideAllOverlays() {
-  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay', 'feedbackOverlay'].forEach(id => $(id).classList.add('hidden'));
+  ['startOverlay', 'resultOverlay', 'fireEndOverlay', 'surviveOverlay', 'newsOverlay', 'howtoOverlay', 'rankOverlay', 'feedbackOverlay', 'noticeOverlay'].forEach(id => $(id).classList.add('hidden'));
   const fvR = $('failVideo'); if (fvR) { fvR.pause(); try { fvR.currentTime = 0; } catch (e) {} }
   const svR = $('surviveVideo'); if (svR) { svR.pause(); try { svR.currentTime = 0; } catch (e) {} }
   orbit.th = 0; orbit.ph = 0;
@@ -1297,6 +1307,8 @@ $('btnHowto').addEventListener('click', () => { $('startOverlay').classList.add(
 $('btnHowtoBack').addEventListener('click', () => { $('howtoOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
 $('btnRank').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('rankOverlay').classList.remove('hidden'); loadRank(); });
 $('btnRankBack').addEventListener('click', () => { $('rankOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
+$('btnNotice').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('noticeOverlay').classList.remove('hidden'); });
+$('btnNoticeBack').addEventListener('click', () => { $('noticeOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
 let DIFF = localStorage.getItem('zhijia-difficulty') === 'easy' ? 'easy' : 'hard';
 function applyDiff() {
   TOP_V = (DIFF === 'easy' ? 60 : 139) / 3.6;
@@ -1346,7 +1358,7 @@ function sendScore(p, attempt) {
   postJSON('/api/zhijia/score', p).then(res => {
     if (res && typeof res.score === 'number') {
       clearPendingScore(p);
-      const el = $('rankLine'); if (el) el.textContent = '🏆 本局得分 ' + res.score + ' 分 · 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
+      const el = $('rankLine'); if (el) el.textContent = '🏆 本局得分 ' + res.score + ' 分（基础 ' + Math.round(100000 / p.brakeTime) + ' + 第一阶段刹停奖励 1612）· 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
     } else if (attempt < 2) {
       setTimeout(() => sendScore(p, attempt + 1), attempt === 0 ? 2000 : 5000);
     } else {
@@ -1357,7 +1369,7 @@ function sendScore(p, attempt) {
 }
 function savePendingScore(p) {
   try {
-    const sc = Math.round(100000 / p.brakeTime);
+    const sc = Math.round(100000 / p.brakeTime) + 1612;
     if (!(sc > 0)) return;
     const old = JSON.parse(localStorage.getItem('zhijia:pending-score') || 'null');
     if (!old || sc > (old._s || 0)) { const q = Object.assign({}, p, { _s: sc, _f: 0 }); localStorage.setItem('zhijia:pending-score', JSON.stringify(q)); }
@@ -1366,7 +1378,7 @@ function savePendingScore(p) {
 function clearPendingScore(p) {
   try {
     const old = JSON.parse(localStorage.getItem('zhijia:pending-score') || 'null');
-    if (old && Math.round(100000 / p.brakeTime) >= (old._s || 0)) localStorage.removeItem('zhijia:pending-score');
+    if (old && Math.round(100000 / p.brakeTime) + 1612 >= (old._s || 0)) localStorage.removeItem('zhijia:pending-score');
   } catch (e) {}
 }
 function flushPendingScore() {
@@ -1386,7 +1398,10 @@ function loadRank() {
   fetch(API + '/api/zhijia/leaderboard?limit=50').then(r => r.json()).then(res => {
     const es = (res && res.entries) || [];
     if (!es.length) { box.innerHTML = '<p class="rank-tip">还没有人上榜，来打下第一个纪录！</p>'; return; }
-    box.innerHTML = es.map((e, i) => '<div class="rank-row"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><span><b>' + (+e.brakeTime).toFixed(2) + ' 秒</b><span class="rank-sub">余量 ' + (+e.margin).toFixed(1) + ' 米</span></span></div>').join('');
+    box.innerHTML = es.map((e, i) => {
+      const react = (typeof e.reaction === 'number' && e.reaction >= 0) ? e.reaction.toFixed(2) + ' 秒' : '—';
+      return '<div class="rank-row"><div class="rank-top"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><b>' + (e.score | 0) + ' 分</b></div><div class="rank-detail">第一阶段刹停成功 · 用时 ' + (+e.brakeTime).toFixed(2) + ' 秒 · 反应 ' + react + ' · 余量 ' + (+e.margin).toFixed(1) + ' 米</div></div>';
+    }).join('');
   }).catch(() => { box.innerHTML = '<p class="rank-tip">加载失败，检查网络后重试</p>'; });
 }
 $('btnFeedback').addEventListener('click', () => { $('startOverlay').classList.add('hidden'); $('feedbackOverlay').classList.remove('hidden'); });
