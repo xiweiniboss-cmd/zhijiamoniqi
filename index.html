@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v19 -->
+<!-- zhijia v20 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1198,11 +1198,47 @@ function reportRun(result) {
 }
 function submitScore() {
   const el = $('rankLine'); el.textContent = '成绩同步中……';
-  postJSON('/api/zhijia/score', { nickname: playerName(), device: DEVICE, brakeTime: G.brakeTime, margin: Math.max(0, G.z - POLE_Z), reaction: G.reaction }).then(res => {
-    if (res && typeof res.score === 'number') el.textContent = '🏆 本局得分 ' + res.score + ' 分 · 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
-    else el.textContent = (res && res.error) || '成绩同步失败';
+  sendScore({ nickname: playerName(), device: DEVICE, brakeTime: G.brakeTime, margin: Math.max(0, G.z - POLE_Z), reaction: G.reaction }, 0);
+}
+// 成绩同步失败（配额/限流/网络）时自动重试；仍失败则暂存本地，下次打开游戏自动补传，避免成绩丢失
+function sendScore(p, attempt) {
+  postJSON('/api/zhijia/score', p).then(res => {
+    if (res && typeof res.score === 'number') {
+      clearPendingScore(p);
+      const el = $('rankLine'); if (el) el.textContent = '🏆 本局得分 ' + res.score + ' 分 · 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
+    } else if (attempt < 2) {
+      setTimeout(() => sendScore(p, attempt + 1), attempt === 0 ? 2000 : 5000);
+    } else {
+      savePendingScore(p);
+      const el = $('rankLine'); if (el) el.textContent = ((res && res.error) || '成绩同步失败') + '（已暂存，下次打开游戏自动补传）';
+    }
   });
 }
+function savePendingScore(p) {
+  try {
+    const sc = Math.round(100000 / p.brakeTime);
+    if (!(sc > 0)) return;
+    const old = JSON.parse(localStorage.getItem('zhijia:pending-score') || 'null');
+    if (!old || sc > (old._s || 0)) { const q = Object.assign({}, p, { _s: sc, _f: 0 }); localStorage.setItem('zhijia:pending-score', JSON.stringify(q)); }
+  } catch (e) {}
+}
+function clearPendingScore(p) {
+  try {
+    const old = JSON.parse(localStorage.getItem('zhijia:pending-score') || 'null');
+    if (old && Math.round(100000 / p.brakeTime) >= (old._s || 0)) localStorage.removeItem('zhijia:pending-score');
+  } catch (e) {}
+}
+function flushPendingScore() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem('zhijia:pending-score') || 'null'); } catch (e) {}
+  if (!p || !(p.brakeTime > 0)) return;
+  const q = { nickname: p.nickname, device: p.device, brakeTime: p.brakeTime, margin: p.margin, reaction: p.reaction };
+  postJSON('/api/zhijia/score', q).then(res => {
+    if (res && typeof res.score === 'number') { clearPendingScore(p); return; }
+    try { p._f = (p._f || 0) + 1; if (p._f > 30) localStorage.removeItem('zhijia:pending-score'); else localStorage.setItem('zhijia:pending-score', JSON.stringify(p)); } catch (e) {}
+  });
+}
+flushPendingScore();
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function loadRank() {
   const box = $('rankList'); box.innerHTML = '<p class="rank-tip">加载中……</p>';
