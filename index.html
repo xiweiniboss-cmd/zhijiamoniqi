@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v24 -->
+<!-- zhijia v25 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -751,17 +751,21 @@ function buildCar(paintColor, withInterior) {
   lgG.addColorStop(0, '#26272e'); lgG.addColorStop(1, '#121317'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 2, 128);
   const linerSide = new THREE.MeshBasicMaterial({ color: 0x0d0e10 });
   const liner = new THREE.Mesh(new THREE.BoxGeometry(1.44, .05, 1.5), [linerSide, linerSide, linerSide, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(lgC) }), linerSide, linerSide]); liner.position.set(0, 1.38, .68); car.add(liner);
-  /* 车顶内饰（车体空间，贴顶衬前沿，驾驶员抬头可见）：顶棚控制台 + 阅读灯 + 遮阳板 + 内后视镜 */
-  const ohBox = new THREE.Mesh(new THREE.BoxGeometry(.42, .055, .24), trim); ohBox.position.set(0, 1.285, -.22); car.add(ohBox);
+  /* 车顶内饰（车体空间，全部贴顶衬）：前横梁饰板 + 贴顶遮阳板 + 顶棚灯控制台 + 后视镜贴车顶悬挂 */
+  const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .035, .30), std(0x2e2b26, .95));
+  headerPanel.position.set(0, 1.352, -.02); car.add(headerPanel);
   [-1, 1].forEach(s => {
-    const lampB = new THREE.Mesh(new THREE.BoxGeometry(.055, .014, .055), new THREE.MeshBasicMaterial({ color: 0xffe6b8 }));
-    lampB.position.set(s * .11, 1.253, -.22); car.add(lampB);
-    const vis = new THREE.Mesh(new THREE.BoxGeometry(.42, .018, .22), trim2);
-    vis.position.set(s * .58, 1.315, -.12); vis.rotation.x = .06; car.add(vis);
+    const vis = new THREE.Mesh(new THREE.BoxGeometry(.46, .02, .24), trim2);
+    vis.position.set(s * .47, 1.338, -.02); car.add(vis);
+    const lampLens = new THREE.Mesh(new THREE.BoxGeometry(.05, .006, .05), new THREE.MeshBasicMaterial({ color: 0xffe6b8 }));
+    lampLens.position.set(s * .085, 1.321, .02); car.add(lampLens);
   });
-  const mirStem2 = new THREE.Mesh(new THREE.CylinderGeometry(.011, .011, .07, 8), trim); mirStem2.position.set(0, 1.255, -.16); car.add(mirStem2);
-  const mirBody2 = new THREE.Mesh(new THREE.BoxGeometry(.34, .095, .028), std(0x1c1e22, .6, .4)); mirBody2.position.set(0, 1.20, -.16); car.add(mirBody2);
-  const mirGlass2 = new THREE.Mesh(new THREE.PlaneGeometry(.31, .075), std(0x55677e, .25, .5)); mirGlass2.position.set(0, 1.20, -.143); car.add(mirGlass2);
+  const domeBox = new THREE.Mesh(new THREE.BoxGeometry(.34, .028, .20), trim);
+  domeBox.position.set(0, 1.336, .02); car.add(domeBox);
+  const mirStalk = new THREE.Mesh(new THREE.BoxGeometry(.03, .05, .02), trim);
+  mirStalk.position.set(0, 1.318, -.155); car.add(mirStalk);
+  const mirBody2 = new THREE.Mesh(new THREE.BoxGeometry(.33, .09, .026), std(0x1c1e22, .6, .4)); mirBody2.position.set(0, 1.272, -.16); car.add(mirBody2);
+  const mirGlass2 = new THREE.Mesh(new THREE.PlaneGeometry(.30, .07), std(0x55677e, .25, .5)); mirGlass2.position.set(0, 1.272, -.146); car.add(mirGlass2);
   /* 踏板总成（镜头空间：悬挂在仪表台下方脚窝区） */
   function pedalAssembly(px, padW, padH) {
     const grp = new THREE.Group(); grp.position.set(px, -.41, -1.22);
