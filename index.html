@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v29 -->
+<!-- zhijia v30 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -767,11 +767,7 @@ function buildCar(paintColor, withInterior) {
   /* 车顶内饰（车体空间，全部贴顶衬）：前横梁饰板 + 贴顶遮阳板 + 顶棚灯控制台 + 后视镜贴车顶悬挂 */
   const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), new THREE.MeshBasicMaterial({ color: 0x141519 }));
   headerPanel.position.set(0, 1.40, .33); car.add(headerPanel);
-  /* 遮阳板/顶灯画在顶衬纹理里（零遮挡）；后视镜移到驾驶位正前方偏中，保证竖屏可见 */
-  const mirStalk = new THREE.Mesh(new THREE.BoxGeometry(.026, .05, .018), trim);
-  mirStalk.position.set(-.22, 1.385, .02); car.add(mirStalk);
-  const mirBody2 = new THREE.Mesh(new THREE.BoxGeometry(.26, .07, .024), std(0x1c1e22, .6, .4)); mirBody2.position.set(-.22, 1.335, .02); car.add(mirBody2);
-  const mirGlass2 = new THREE.Mesh(new THREE.PlaneGeometry(.235, .058), std(0x55677e, .25, .5)); mirGlass2.position.set(-.22, 1.335, .034); car.add(mirGlass2);
+  /* 遮阳板/顶灯画在顶衬纹理里（零遮挡）；中央后视镜已按老板要求删除 */
   /* 踏板总成（镜头空间：悬挂在仪表台下方脚窝区） */
   function pedalAssembly(px, padW, padH) {
     const grp = new THREE.Group(); grp.position.set(px, -.41, -1.22);
