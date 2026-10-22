@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v32 -->
+<!-- zhijia v33 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -128,6 +128,7 @@
   #svScoreLine { font-size:15px; color:#ffd166; margin:0 0 4px; }
   .rank-right { display:flex; align-items:center; }
   .rank-detail-btn { margin-left:10px; padding:3px 12px; font-size:12.5px; border-radius:999px; border:1px solid rgba(255,209,102,.55); background:rgba(255,209,102,.12); color:#ffd166; cursor:pointer; }
+  .rank-taunt { font-size:11px; color:#8a93a5; margin-top:3px; letter-spacing:.5px; }
 </style>
 </head>
 <body>
@@ -1530,7 +1531,7 @@ function loadRank() {
     const es = (res && res.entries) || [];
     rankEntries = es;
     if (!es.length) { box.innerHTML = '<p class="rank-tip">还没有人上榜，来打下第一个纪录！</p>'; return; }
-    box.innerHTML = es.map((e, i) => '<div class="rank-row"><div class="rank-top"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><span class="rank-right"><b>' + (e.score | 0) + ' 分</b><button class="rank-detail-btn" data-idx="' + i + '">详情</button></span></div></div>').join('');
+    box.innerHTML = es.map((e, i) => '<div class="rank-row"><div class="rank-top"><span>' + (i + 1) + '. ' + escHtml(e.nickname) + '</span><span class="rank-right"><b>' + (e.score | 0) + ' 分</b><button class="rank-detail-btn" data-idx="' + i + '">详情</button></span></div>' + (i === 0 ? '<div class="rank-taunt">让他们永远追不上！</div>' : '') + '</div>').join('');
     box.querySelectorAll('.rank-detail-btn').forEach(btn => btn.addEventListener('click', () => openRankDetail(+btn.getAttribute('data-idx'))));
   }).catch(() => { box.innerHTML = '<p class="rank-tip">加载失败，检查网络后重试</p>'; });
 }
