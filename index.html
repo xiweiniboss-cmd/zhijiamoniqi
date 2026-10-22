@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v26 -->
+<!-- zhijia v27 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -766,12 +766,12 @@ function buildCar(paintColor, withInterior) {
   const liner = new THREE.Mesh(new THREE.BoxGeometry(1.44, .05, 1.15), [linerSide, linerSide, linerSide, new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(lgC), roughness: .95, metalness: 0 }), linerSide, linerSide]); liner.position.set(0, 1.38, .85); car.add(liner);
   /* 车顶内饰（车体空间，全部贴顶衬）：前横梁饰板 + 贴顶遮阳板 + 顶棚灯控制台 + 后视镜贴车顶悬挂 */
   const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), new THREE.MeshBasicMaterial({ color: 0x141519 }));
-  headerPanel.position.set(0, 1.345, .22); car.add(headerPanel);
+  headerPanel.position.set(0, 1.366, .24); car.add(headerPanel);
   /* 遮阳板/顶灯画在顶衬纹理里（零遮挡）；后视镜移到驾驶位正前方偏中，保证竖屏可见 */
-  const mirStalk = new THREE.Mesh(new THREE.BoxGeometry(.026, .045, .018), trim);
-  mirStalk.position.set(-.22, 1.322, .20); car.add(mirStalk);
-  const mirBody2 = new THREE.Mesh(new THREE.BoxGeometry(.24, .065, .022), std(0x1c1e22, .6, .4)); mirBody2.position.set(-.22, 1.283, .20); car.add(mirBody2);
-  const mirGlass2 = new THREE.Mesh(new THREE.PlaneGeometry(.215, .052), std(0x6b7f96, .25, .5)); mirGlass2.position.set(-.22, 1.283, .212); car.add(mirGlass2);
+  const mirStalk = new THREE.Mesh(new THREE.BoxGeometry(.026, .05, .018), trim);
+  mirStalk.position.set(-.22, 1.385, .16); car.add(mirStalk);
+  const mirBody2 = new THREE.Mesh(new THREE.BoxGeometry(.24, .06, .022), std(0x1c1e22, .6, .4)); mirBody2.position.set(-.22, 1.345, .16); car.add(mirBody2);
+  const mirGlass2 = new THREE.Mesh(new THREE.PlaneGeometry(.215, .048), std(0x55677e, .25, .5)); mirGlass2.position.set(-.22, 1.345, .172); car.add(mirGlass2);
   /* 踏板总成（镜头空间：悬挂在仪表台下方脚窝区） */
   function pedalAssembly(px, padW, padH) {
     const grp = new THREE.Group(); grp.position.set(px, -.41, -1.22);
