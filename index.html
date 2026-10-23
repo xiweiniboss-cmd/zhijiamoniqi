@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v34 -->
+<!-- zhijia v35 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -969,9 +969,10 @@ function stripeTexture() {
   return new THREE.CanvasTexture(c);
 }
 /* 撞击目标 v34：情报板龙门架立柱（双立柱框架 + 大黑面板 + 中部开口 + 下部箱体 + 基座脚板）
-   视觉位置 = POLE_Z + 2.60：车头在车组原点前方 2.45m、柱厚 .30，撞毁触发瞬间车头正好吻上柱面；
+   视觉位置 = POLE_Z − 2.60（v35 修正符号）：车头在车组原点前方 2.45m（−z 向）、柱厚 .30，
+   撞毁触发瞬间（原点到达 POLE_Z）车头正好吻上柱面；HUD 距离 = 车头到柱面的真实间隙；
    碰撞/计分仍以原点对 POLE_Z 计算，玩法数值不变 */
-const poleGrp = new THREE.Group(); poleGrp.position.set(0, 0, POLE_Z + 2.60); scene.add(poleGrp);
+const poleGrp = new THREE.Group(); poleGrp.position.set(0, 0, POLE_Z - 2.60); scene.add(poleGrp);
 {
   const frameMat = std(0x23262c, .8, .2);
   const panelMat = std(0x0a0c10, .92, .05);
