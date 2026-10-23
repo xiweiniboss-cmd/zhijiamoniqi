@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v35 -->
+<!-- zhijia v36 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -190,7 +190,7 @@
   <div class="card">
     <h1>🎮 游戏玩法</h1>
     <p class="story">你喝了很多酒，在法律上已经构成<b>醉驾</b>，却把命交给了自动驾驶——开着一辆「田介」智驾车行驶在深夜的路上。<br>
-    快到红绿灯路口时，<span class="red">智驾突然失灵</span>：车辆没有减速，反而自动踩下油门，油门瞬间锁死（失控车速：简单模式 <b>60km/h</b> · 困难模式 <b>139km/h</b>），直冲 T 字路口对面的杆子而去！</p>
+    快到红绿灯路口时，<span class="red">智驾突然失灵</span>：车辆没有减速，反而自动踩下油门，油门瞬间锁死（失控车速：简单模式 <b>60km/h</b> · 困难模式 <b>139km/h</b>），在路口左转冲向对面拐角的杆子！</p>
     <div class="howto">🎮 第一阶段 · 路口接管<br>· 按住「刹车」力度会持续上升，松开泄力，力度决定刹车强度<br>· ⚠️ 力度超过 <b style="color:#ff8080">1612N</b> 踏板就会断裂，游戏直接失败！<br>· 点刹控力，在撞上杆子之前刹停 = 直接胜利（结算会给出刹车用时）<br><br>🎮 第二阶段 · 撞毁逃生（只有撞上才会进入）<br>· 你只有 <b>3 秒钟</b>：按顺序点对三个按钮——开车门 → 快跑！ → 拨打紧急电话<br>· 按钮位置每局随机打乱，按错或超时，后果自负……</div>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnHowtoBack">返回</button>
@@ -392,12 +392,36 @@ Object.keys(SFX).forEach(k => { SFX[k].preload = 'auto'; });
 function playSfx(a) { if (AU.muted) return; try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 $('muteBtn').addEventListener('click', () => { $('muteBtn').textContent = AU.toggleMute() ? '🔇 音效：关' : '🔊 音效：开'; });
 /* ================= Three 场景 ================= */
-const POLE_Z = -322, GANTRY_Z = -284.5;
+const GANTRY_Z = -284.5;
+/* v36 神木实景路口：立柱在主路远侧西北角；路线 = 沿支路（进口道）北上 → 路口内左转斜冲向立柱
+   路线用 Catmull-Rom 曲线定义，G.s = 出发后沿路线的行驶距离；remain() = 距柱子剩余路程 */
+const POLE_POS = { x: -8.6, z: -313.4 };
+const POLE_ROT = .305;
+const PATH_CURVE = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-1.75, 0, 70), new THREE.Vector3(-1.75, 0, -150),
+  new THREE.Vector3(-1.85, 0, -255), new THREE.Vector3(-3.1, 0, -283),
+  new THREE.Vector3(-5.2, 0, -300), new THREE.Vector3(-7.0, 0, -308.5),
+  new THREE.Vector3(-7.82, 0, -310.92)
+]);
+const PATH_TOTAL = PATH_CURVE.getLength();
+let PATH_S0 = 0;
+{
+  const sPts = PATH_CURVE.getSpacedPoints(1200);
+  for (let i = 1; i < sPts.length; i++) { if (sPts[i - 1].z >= 0 && sPts[i].z < 0) { PATH_S0 = i / 1200 * PATH_TOTAL; break; } }
+}
+const PATH_LEN = PATH_TOTAL - PATH_S0;
+function pathPose(s) {
+  const u = Math.min(1, Math.max(0, (s + PATH_S0) / PATH_TOTAL));
+  const p = PATH_CURVE.getPointAt(u), t = PATH_CURVE.getTangentAt(u);
+  return { x: p.x, z: p.z, hx: t.x, hz: t.z, th: Math.atan2(-t.x, -t.z) };
+}
+function remain() { return Math.max(0, PATH_LEN - (G.s || 0)); }
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a14);
 scene.fog = new THREE.Fog(0x060a14, 30, 210);
 function fovFor() { const a = innerWidth / innerHeight; return a < .8 ? 82 : a < 1.2 ? 78 : 74; }
 const camera = new THREE.PerspectiveCamera(fovFor(), innerWidth / innerHeight, .05, 700);
+camera.rotation.order = 'YXZ';
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -886,8 +910,10 @@ function roadPlane(w, l, rx, rz) {
   m.rotation.x = -Math.PI / 2; m.position.set(0, .01, 0); m.position.x = rx; m.position.z = rz;
   scene.add(m); return m;
 }
-roadPlane(11.4, 320, 0, -127.5);            // 进口道：z +32.5 ~ -287.5
-roadPlane(340, 24, 0, -299.5);              // 横向道路：z -287.5 ~ -311.5
+roadPlane(14, 328, 0, -123.5);              // 进口道（支路 · 四车道）：z +40.5 ~ -287.5
+roadPlane(340, 24, 0, -299.5);              // 横向道路（主路）：z -287.5 ~ -311.5
+/* 支路两侧人行道 */
+[-8.7, 8.7].forEach(x => { const sw = new THREE.Mesh(new THREE.BoxGeometry(3.2, .13, 328), std(0x2c2f36, .95)); sw.position.set(x, .065, -123.5); scene.add(sw); });
 const farGround = new THREE.Mesh(new THREE.PlaneGeometry(500, 130), std(0x11151c, 1));
 farGround.rotation.x = -Math.PI / 2; farGround.position.set(0, -.02, -380); scene.add(farGround);
 const sideGroundL = new THREE.Mesh(new THREE.PlaneGeometry(120, 700), std(0x0d1117, 1));
@@ -900,63 +926,54 @@ function flatLine(w, l, x, z, mat = lineMatW, y = .022) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), mat);
   m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); scene.add(m); return m;
 }
-/* 进口道标线：边线 + 分道虚线 + 近口实线 */
-[-5.55, 5.55].forEach(x => flatLine(.15, 317, x, -129));
-[-1.8, 1.8].forEach(x => {
+/* 进口道标线（四车道）：边线 + 分道虚线 + 近口实线 */
+[-6.85, 6.85].forEach(x => flatLine(.15, 317, x, -129));
+[-3.5, 0, 3.5].forEach(x => {
   for (let z = 24; z > -248; z -= 9) flatLine(.15, 3.2, x, z);
   flatLine(.15, 34, x, -265);
 });
-flatLine(10.8, .55, 0, -282); // 停止线
+flatLine(13.4, .55, 0, -280.5); // 停止线
 function zebra(x0, x1, z0, z1) {
   for (let x = x0; x <= x1; x += 1.15) flatLine(.62, z1 - z0, x, (z0 + z1) / 2);
 }
-zebra(-5.2, 5.2, -287.3, -283.6);           // 进口斑马线
-zebra(-5.2, 5.2, -315.3, -311.6);           // 对面斑马线
-/* 横向道路标线：双黄线 + 分道虚线 */
-flatLine(340, .14, 0, -299.1, lineMatY); flatLine(340, .14, 0, -300.1, lineMatY);
+zebra(-6.7, 6.7, -286.9, -283.5);           // 支路口斑马线
+/* 主路斑马线：西口 + 东口（长条顺车流方向） */
+function zebraMain(x) { for (let z = -310.4; z < -288.6; z += 1.0) flatLine(3.4, .45, x, z); }
+zebraMain(-13.5); zebraMain(11);
+/* 主路分道虚线（单幅大路，无中央双黄） */
 for (let x = -165; x < 165; x += 10) { flatLine(3.4, .14, x, -293.6); flatLine(3.4, .14, x, -305.6); }
-/* 导向箭头 */
+/* 导向箭头（v36：按国标轮廓的一笔多边形，与实景还原定稿一致） */
 function arrowTexture(kind) {
-  const c = document.createElement('canvas'); c.width = 128; c.height = 192;
+  const c = document.createElement('canvas');
+  if (kind === 'leftUturn') { c.width = 176; c.height = 176; } else { c.width = 128; c.height = 160; }
   const g = c.getContext('2d');
-  g.clearRect(0, 0, 128, 192);
-  g.fillStyle = 'rgba(235,235,228,0.92)'; g.strokeStyle = 'rgba(235,235,228,0.92)';
-  const shaft = (x0, y0, x1, y1, w) => { g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
-  const head = (x, y, dir) => {
-    g.beginPath();
-    if (dir === 'up') { g.moveTo(x, y); g.lineTo(x - 17, y + 26); g.lineTo(x + 17, y + 26); }
-    if (dir === 'left') { g.moveTo(x, y); g.lineTo(x + 26, y - 17); g.lineTo(x + 26, y + 17); }
-    if (dir === 'right') { g.moveTo(x, y); g.lineTo(x - 26, y - 17); g.lineTo(x - 26, y + 17); }
-    g.closePath(); g.fill();
-  };
-  if (kind === 'straight') { shaft(64, 178, 64, 44, 15); head(64, 16, 'up'); }
-  if (kind === 'left') { shaft(80, 178, 80, 96, 15); shaft(80, 82, 42, 82, 15); head(18, 82, 'left'); }
-  if (kind === 'right') { shaft(48, 178, 48, 96, 15); shaft(48, 82, 86, 82, 15); head(110, 82, 'right'); }
+  g.fillStyle = 'rgba(233,233,227,.95)';
+  const poly = pts => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); pts.slice(1).forEach(([x, y]) => g.lineTo(x, y)); g.closePath(); g.fill(); };
   if (kind === 'leftUturn') {
-    shaft(82, 180, 82, 94, 15);
-    shaft(82, 84, 46, 84, 15); head(22, 84, 'left');
-    g.lineWidth = 15; g.beginPath(); g.moveTo(82, 94); g.quadraticCurveTo(82, 20, 50, 20); g.quadraticCurveTo(26, 20, 26, 42); g.stroke();
-    g.beginPath(); g.moveTo(26, 68); g.lineTo(11, 42); g.lineTo(41, 42); g.closePath(); g.fill();
+    poly([[56, 44], [146, 44], [146, 168], [128, 168], [128, 64], [56, 64]]);
+    poly([[14, 54], [56, 28], [56, 80]]);
+    poly([[74, 64], [92, 64], [92, 108], [74, 108]]);
+    poly([[58, 108], [108, 108], [83, 136]]);
+  } else if (kind === 'straight') {
+    poly([[64, 6], [96, 58], [74, 58], [74, 152], [54, 152], [54, 58], [32, 58]]);
+  } else {
+    let pts = [[6, 64], [42, 34], [42, 50], [90, 50], [90, 152], [70, 152], [70, 78], [42, 78], [42, 94]];
+    if (kind === 'right') pts = pts.map(([x, y]) => [128 - x, y]);
+    poly(pts);
   }
   return new THREE.CanvasTexture(c);
 }
-[['leftUturn', -3.6], ['left', 0], ['left', 3.6]].forEach(([kind, x]) => {
-  const a = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 5.1), new THREE.MeshBasicMaterial({ map: arrowTexture(kind), transparent: true, depthWrite: false }));
+/* 四车道：左转+掉头 / 左转 / 直行 / 右转 */
+[['leftUturn', -5.25, 3.8], ['left', -1.75, 3.0], ['straight', 1.75, 3.0], ['right', 5.25, 3.0]].forEach(([kind, x, w]) => {
+  const a = new THREE.Mesh(new THREE.PlaneGeometry(w, 5.4), new THREE.MeshBasicMaterial({ map: arrowTexture(kind), transparent: true, depthWrite: false }));
   a.rotation.x = -Math.PI / 2; a.position.set(x, .025, -267); scene.add(a);
 });
-/* 左转待转区导向虚线 */
-function turnGuide(L, R) {
-  const cx = L - R, cz = -282;
-  for (let i = 1; i < 7; i++) {
-    const a = (i + .5) / 7 * Math.PI / 2;
-    const d = flatLine(.16, 1.7, cx + Math.cos(a) * R, cz - Math.sin(a) * R, lineMatW, .028);
-    d.rotation.z = a;
-  }
-}
-turnGuide(-3.6, 8); turnGuide(0, 11); turnGuide(3.6, 14.4);
 /* 对面：人行道 + 草坪 + 杆子 */
-const farWalk = new THREE.Mesh(new THREE.BoxGeometry(130, .15, 4.2), std(0x3a3e45, .95));
-farWalk.position.set(0, .07, -317.6); scene.add(farWalk);
+const farWalk = new THREE.Mesh(new THREE.BoxGeometry(170, .15, 6.2), std(0x3a3e45, .95));
+farWalk.position.set(0, .07, -314.6); scene.add(farWalk);
+/* 立柱街角砖铺平台（西北角，柱子脚下） */
+const cornerPad = new THREE.Mesh(new THREE.BoxGeometry(13, .17, 6.4), std(0x4a463e, .95));
+cornerPad.position.set(-10.5, .085, -314.9); scene.add(cornerPad);
 const grass = new THREE.Mesh(new THREE.PlaneGeometry(500, 62), std(0x14231a, 1));
 grass.rotation.x = -Math.PI / 2; grass.position.set(0, .005, -350); scene.add(grass);
 function stripeTexture() {
@@ -969,10 +986,9 @@ function stripeTexture() {
   return new THREE.CanvasTexture(c);
 }
 /* 撞击目标 v34：情报板龙门架立柱（双立柱框架 + 大黑面板 + 中部开口 + 下部箱体 + 基座脚板）
-   视觉位置 = POLE_Z − 2.60（v35 修正符号）：车头在车组原点前方 2.45m（−z 向）、柱厚 .30，
-   撞毁触发瞬间（原点到达 POLE_Z）车头正好吻上柱面；HUD 距离 = 车头到柱面的真实间隙；
-   碰撞/计分仍以原点对 POLE_Z 计算，玩法数值不变 */
-const poleGrp = new THREE.Group(); poleGrp.position.set(0, 0, POLE_Z - 2.60); scene.add(poleGrp);
+   v36：立柱移到主路远侧西北角（实景还原）；路线终点 = 车头吻上柱面时车组原点的位置
+   （沿末段方向距柱心 2.60m = 车头在原点前方 2.45m + 柱厚一半 .15m）；HUD 距离 = 剩余路程 */
+const poleGrp = new THREE.Group(); poleGrp.position.set(POLE_POS.x, 0, POLE_POS.z); poleGrp.rotation.y = POLE_ROT; scene.add(poleGrp);
 {
   const frameMat = std(0x23262c, .8, .2);
   const panelMat = std(0x0a0c10, .92, .05);
@@ -1007,7 +1023,7 @@ const poleGrp = new THREE.Group(); poleGrp.position.set(0, 0, POLE_Z - 2.60); sc
   poleGrp.traverse(o => { if (o.isMesh) o.castShadow = true; });
 }
 const signPole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 2.6, 8), std(0x666c74, .6, .5));
-signPole.position.set(6.8, 1.3, -316.5); scene.add(signPole);
+signPole.position.set(-12.8, 1.3, -314.2); scene.add(signPole);
 function pedSignTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -1022,17 +1038,146 @@ function pedSignTexture() {
   return new THREE.CanvasTexture(c);
 }
 const crossSign = new THREE.Mesh(new THREE.PlaneGeometry(.85, .85), new THREE.MeshBasicMaterial({ map: pedSignTexture(), side: THREE.DoubleSide }));
-crossSign.position.set(6.8, 2.9, -316.5); scene.add(crossSign);
+crossSign.position.set(-12.8, 2.9, -314.2); scene.add(crossSign);
+
+/* ---- v36 实景还原：主路远侧（北侧）街角陈设 ---- */
+{ /* 柱旁细圆杆 */
+  const slim = new THREE.Mesh(new THREE.CylinderGeometry(.055, .065, 7.6, 10), std(0x565b63, .6, .5));
+  slim.position.set(-7.3, 3.8, -312.7); scene.add(slim);
+  const lampDot = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 8), new THREE.MeshBasicMaterial({ color: 0xdfe8ff }));
+  lampDot.position.set(-7.3, 7.62, -312.7); scene.add(lampDot);
+}
+{ /* 柱旁大蓝牌 */
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 3.6, 8), std(0x9aa0a6, .5, .5));
+  post.position.set(-5.2, 1.8, -314.1); scene.add(post);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.35, .06), std(0x1d4e9c, .45, .15));
+  board.position.set(-5.2, 3.05, -314.1); scene.add(board);
+}
+{ /* 柱旁竖式信号灯 */
+  const g = new THREE.Group();
+  const m = std(0x3a3f46, .6, .5);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07, .09, 5.6, 10), m);
+  pole.position.y = 2.8; g.add(pole);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.34, 1.05, .26), std(0x14161a, .7, .2));
+  head.position.set(0, 4.9, .1); g.add(head);
+  [0xc0271c, 0xd8a018, 0x1f9d4d].forEach((cc, i) => {
+    const lamp = new THREE.Mesh(new THREE.CircleGeometry(.105, 20), new THREE.MeshBasicMaterial({ color: i === 0 ? cc : 0x1c1f24 }));
+    lamp.position.set(0, 5.22 - i * .33, .235); g.add(lamp);
+  });
+  g.position.set(-6.7, .15, -313.5); g.rotation.y = .35; scene.add(g);
+}
+function roundSign36(x, z) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g2 = c.getContext('2d');
+  g2.fillStyle = '#e8e6e0'; g2.beginPath(); g2.arc(64, 64, 62, 0, Math.PI * 2); g2.fill();
+  g2.strokeStyle = '#c0271c'; g2.lineWidth = 13; g2.beginPath(); g2.arc(64, 64, 54, 0, Math.PI * 2); g2.stroke();
+  g2.fillStyle = '#1a1a1a'; g2.font = 'bold 56px sans-serif'; g2.textAlign = 'center'; g2.fillText('50', 64, 82);
+  const tex = new THREE.CanvasTexture(c);
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, 2.4, 8), std(0x565b63, .6, .5));
+  post.position.y = 1.2; g.add(post);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(.55, 28), new THREE.MeshBasicMaterial({ map: tex }));
+  disc.position.y = 2.6; g.add(disc);
+  const back = new THREE.Mesh(new THREE.CircleGeometry(.55, 28), std(0x8f9296, .6, .4));
+  back.position.set(0, 2.6, -.012); back.rotation.y = Math.PI; g.add(back);
+  g.position.set(x, 0, z); scene.add(g);
+  return g;
+}
+{ /* 50 限速牌 + 蓝圆牌：柱子同侧往东约 16m，同杆叠放 */
+  roundSign36(7.4, -313.9);
+  const ext = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.1, 8), std(0x565b63, .6, .5));
+  ext.position.set(7.4, 2.95, -313.9); scene.add(ext);
+  const bd = new THREE.Mesh(new THREE.CircleGeometry(.42, 24), new THREE.MeshStandardMaterial({ color: 0x2456a8, roughness: .5, side: THREE.DoubleSide }));
+  bd.position.set(7.4, 3.62, -313.9); scene.add(bd);
+  /* 对面与沿路的限速牌 */
+  roundSign36(-30, -286.9); roundSign36(28, -313.9); roundSign36(-52, -313.9);
+}
+function lanternPost36(x, z) {
+  const g = new THREE.Group();
+  const m = std(0x8a6f3c, .5, .6);
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(.06, .08, 5.2, 8), m);
+  p.position.y = 2.6; g.add(p);
+  [-1, 1].forEach(s => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.7, .05, .05), m);
+    arm.position.set(s * .35, 5.0, 0); g.add(arm);
+    const lant = new THREE.Mesh(new THREE.SphereGeometry(.17, 12, 10), new THREE.MeshBasicMaterial({ color: 0xd8302a }));
+    lant.scale.y = .85; lant.position.set(s * .68, 4.78, 0); g.add(lant);
+  });
+  g.position.set(x, .1, z); scene.add(g);
+}
+lanternPost36(-38, -313.4); lanternPost36(20, -313.4); lanternPost36(48, -313.4); lanternPost36(-24, -286.6);
+function wingLight36(x, z) {
+  const g = new THREE.Group();
+  const m = std(0x6a7076, .5, .6);
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(.07, .1, 7.6, 8), m);
+  p.position.y = 3.8; g.add(p);
+  [-1, 1].forEach(s => {
+    const a = new THREE.Mesh(new THREE.BoxGeometry(.06, .06, 1.6), m);
+    a.position.set(0, 7.35, s * .72); a.rotation.x = s * .38; g.add(a);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(.3, .06, .55), new THREE.MeshBasicMaterial({ color: 0xffd9a0 }));
+    head.position.set(0, 7.62, s * 1.42); g.add(head);
+  });
+  g.position.set(x, 0, z); scene.add(g);
+  addGlow(x, 7.6, z, 4.2, .35);
+}
+[-52, -20, 16, 46].forEach(x => wingLight36(x, -312.3));
+[-44, -18, 22, 52].forEach(x => wingLight36(x, -286.4));
+{ /* 人行道上的白面包车 + 黄色立牌（照片元素） */
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.8, 1.78), std(0xd9d9d9, .4, .3));
+  body.position.y = 1.12; g.add(body);
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(.7, .62, 1.7), std(0x232830, .3, .3));
+  shield.position.set(2.05, 1.28, 0); g.add(shield);
+  [[-1.5, .82], [1.5, .82], [-1.5, -.82], [1.5, -.82]].forEach(([wx, wz]) => {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(.32, .32, .16, 12), std(0x0c0c0e, .9));
+    w.rotation.x = Math.PI / 2; w.position.set(wx, .32, wz); g.add(w);
+  });
+  g.position.set(17, 0, -315); scene.add(g);
+  const yb = new THREE.Mesh(new THREE.BoxGeometry(.95, 1.5, .08), std(0xd8a018, .6));
+  yb.position.set(11.5, .9, -313.9); yb.rotation.y = .3; scene.add(yb);
+}
+{ /* 高压电杆（多层横担） */
+  const cm = std(0x83868a, .8);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.13, .17, 13, 8), cm);
+  pole.position.set(-30, 6.5, -319.5); scene.add(pole);
+  [[9.4, 2.2], [10.5, 3.2], [11.6, 3.2], [12.7, 3.0]].forEach(([y, w]) => {
+    const ca = new THREE.Mesh(new THREE.BoxGeometry(w, .12, .12), cm);
+    ca.position.set(-30, y, -319.5); scene.add(ca);
+  });
+}
+{ /* 远处绿色护栏（主路南侧西段） */
+  const gm = std(0x2f7d5c, .55, .35);
+  const r1 = new THREE.Mesh(new THREE.BoxGeometry(37, .26, .05), gm); r1.position.set(-63, .62, -286.2); scene.add(r1);
+  const r2 = new THREE.Mesh(new THREE.BoxGeometry(37, .18, .05), gm); r2.position.set(-63, .34, -286.2); scene.add(r2);
+  for (let x = -80; x <= -45; x += 4.6) { const p = new THREE.Mesh(new THREE.BoxGeometry(.12, .75, .12), gm); p.position.set(x, .37, -286.2); scene.add(p); }
+}
+{ /* 柱子背后：荒草地 + 常绿松树 */
+  [[-16, -320, 3.2], [-4, -319, 2.4], [-24, -322, 3.6]].forEach(([x, z, r]) => {
+    const s = new THREE.Mesh(new THREE.CircleGeometry(r, 14), std(0x23241a, 1));
+    s.rotation.x = -Math.PI / 2; s.position.set(x, .045, z); scene.add(s);
+  });
+  const conifer = (x, z, s = 1) => {
+    const g = new THREE.Group();
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(.07 * s, .09 * s, 1.1 * s, 7), std(0x3c3128, 1));
+    tr.position.y = .55 * s; g.add(tr);
+    const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.15 * s, 2.7 * s, 9), std(0x12240f, 1));
+    c1.position.y = 2.3 * s; g.add(c1);
+    const c2 = new THREE.Mesh(new THREE.ConeGeometry(.82 * s, 2.2 * s, 9), std(0x142812, 1));
+    c2.position.y = 3.8 * s; g.add(c2);
+    g.position.set(x, 0, z); scene.add(g);
+  };
+  conifer(-18, -321, 1.1); conifer(-2, -320, 1.25); conifer(-26, -324, 1.3); conifer(8, -319, 1.1);
+}
 
 /* ---- 龙门架红绿灯 + 倒计时 ---- */
 const gantryMat = std(0x39404a, .6, .5);
-[-6.2, 6.2].forEach(x => {
+[-7.6, 7.6].forEach(x => {
   const p = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, 6.4, 8), gantryMat);
   p.position.set(x, 3.2, GANTRY_Z); scene.add(p);
 });
-const truss = new THREE.Mesh(new THREE.BoxGeometry(13, .3, .3), gantryMat);
+const truss = new THREE.Mesh(new THREE.BoxGeometry(15.8, .3, .3), gantryMat);
 truss.position.set(0, 6.3, GANTRY_Z); scene.add(truss);
-const truss2 = new THREE.Mesh(new THREE.BoxGeometry(13, .18, .18), gantryMat);
+const truss2 = new THREE.Mesh(new THREE.BoxGeometry(15.8, .18, .18), gantryMat);
 truss2.position.set(0, 5.82, GANTRY_Z); scene.add(truss2);
 function makeLightHead(x) {
   const grp = new THREE.Group(); grp.position.set(x, 5.28, GANTRY_Z + .1);
@@ -1047,7 +1192,7 @@ function makeLightHead(x) {
   const L = { r: mk(.31, 0xff2d20), y: mk(0, 0xffb300), g: mk(-.31, 0x2eff5e) };
   scene.add(grp); return L;
 }
-const lightHeads = [makeLightHead(-3.6), makeLightHead(0), makeLightHead(3.6)];
+const lightHeads = [-5.25, -1.75, 1.75, 5.25].map(makeLightHead);
 function setLights(color) {
   lightHeads.forEach(L => {
     L.r.mat.color.copy(color === 'r' ? L.r.on : L.r.off);
@@ -1085,8 +1230,8 @@ function makeLamp(x, z, armDir) {
   addGlow(x + armDir * 1.6, 5.85, z, 3.4, .5);
   addPool(x + armDir * 1.4, z, 9, 13, .13);
 }
-for (let z = 16; z > -272; z -= 32) { makeLamp(-6.5, z, 1); makeLamp(6.5, z - 16, -1); }
-makeLamp(-7.5, -284, 1); makeLamp(7.5, -284, -1); makeLamp(-7.5, -314, 1); makeLamp(7.5, -314, -1);
+for (let z = 16; z > -272; z -= 32) { makeLamp(-8.3, z, 1); makeLamp(8.3, z - 16, -1); }
+makeLamp(-8.6, -284, 1); makeLamp(8.6, -284, -1); makeLamp(-8.6, -314, 1); makeLamp(8.6, -314, -1);
 addPool(0, -299, 30, 26, .12);
 function buildingTexture() {
   const c = document.createElement('canvas'); c.width = 128; c.height = 256;
@@ -1175,13 +1320,15 @@ for (let i = 0; i < 9; i++) {
   flameGroup.add(s); flameSprites.push(s);
 }
 const fireLight = new THREE.PointLight(0xff7722, 0, 13, 1.6); scene.add(fireLight);
-function setFlames(on, carZ) {
+function setFlames(on) {
   flameGroup.visible = on;
   if (on) {
+    const px = G.px || 0, pz = G.pz || 0, hx = G.hx || 0, hz = G.hz || -1;
     flameSprites.forEach((s, i) => {
-      s.position.set((i % 3 - 1) * .55 + (Math.random() - .5) * .3, .55 + Math.random() * .3, carZ - 2.1 - Math.random() * .4);
+      const lat = (i % 3 - 1) * .55 + (Math.random() - .5) * .3;
+      s.position.set(px + hx * 2.1 + (-hz) * lat, .55 + Math.random() * .3, pz + hz * 2.1 + hx * lat - Math.random() * .2);
     });
-    fireLight.position.set(0, 1, carZ - 2.6);
+    fireLight.position.set(px + hx * 2.6, 1, pz + hz * 2.6);
   }
   if (!on) fireLight.intensity = 0;
 }
@@ -1202,19 +1349,19 @@ function hideAllOverlays() {
   orbit.th = 0; orbit.ph = 0;
 }
 function resetGame() {
-  Object.assign(G, { phase: 'cruise', speed: 0, z: 0, brakeHeld: false, force: 0, maxForce: 0,
+  Object.assign(G, { phase: 'cruise', speed: 0, z: 0, s: 0, px: -1.75, pz: 0, hx: 0, hz: -1, brakeHeld: false, force: 0, maxForce: 0,
     failTime: 0, reaction: null, maxSpeed: 0, brakeTime: 0, seqT: 0, shake: 0 });
   impactSpeed = 0;
-  CAR.group.position.set(0, 0, 0);
+  CAR.group.position.set(-1.75, 0, 0);
   CAR.group.rotation.set(0, 0, 0);
   CAR.hoodPivot.rotation.x = 0;
   CAR.airbag.visible = false; CAR.airbag.scale.setScalar(.01); airbagOut = 0;
   CAR.crackMat.opacity = 0;
   CAR.brakePedal.rotation.set(0, 0, 0); CAR.brakePedal.position.set(-.16, -.41, -1.22);
   CAR.setScreen('normal'); CAR.stripMat.color.setHex(0x2f7bff);
-  poleGrp.rotation.set(0, 0, 0);
+  poleGrp.rotation.set(0, POLE_ROT, 0);
   particleMode = 'off';
-  setFlames(false, 0);
+  setFlames(false);
   yellowSet = redSet = false;
   cdValue = 30; cdLast = -1; cdRed = false;
   crossCars.forEach(c => { c.x = c.dir > 0 ? -150 : 150; c.grp.position.x = c.x; c.grp.visible = true; });
@@ -1294,7 +1441,7 @@ function seqPress(key, btn) {
 function fireGameOver(reason) {
   G.phase = 'burned'; burnTimer = 1.1;
   particleMode = 'fire';
-  setFlames(true, G.z);
+  setFlames(true);
   $('fireOverlay').style.opacity = .3;
   $('seqBox').style.display = 'none';
   $('fireEndText').textContent = reason + '车辆起火自燃，你失去了任何挽回生命的手段。';
@@ -1304,7 +1451,7 @@ function fireGameOver(reason) {
 function newsEnding() {
   G.phase = 'done';
   particleMode = 'smoke';
-  setFlames(false, 0);
+  setFlames(false);
   $('fireOverlay').style.opacity = 0;
   $('seqBox').style.display = 'none';
   AU.setEngine(0, false); playSfx(SFX.fail);
@@ -1336,7 +1483,7 @@ function showResult(kind) {
   const kmh = Math.round(G.maxSpeed * KMH);
   const react = G.reaction === null ? '—' : G.reaction.toFixed(2) + ' 秒';
   if (kind === 'win') {
-    const margin = Math.max(0, G.z - POLE_Z);
+    const margin = remain();
     $('resultTitle').textContent = '🏆 成功刹停 · 游戏胜利！';
     $('resultStats').innerHTML = `刹车用时 <b>${G.brakeTime.toFixed(2)} 秒</b><br>接管反应 <b>${react}</b><br>最高速度 <b>${kmh} km/h</b><br>最大力度 <b>${Math.round(G.maxForce)} N</b><br>停车余量 <b>${margin.toFixed(1)} 米</b><br>难度 <b>${DIFF === 'hard' ? '遥遥领先 · 计入排行榜' : '诚实正直不说假话 · 不计入排行榜'}</b>`;
     $('resultNote').textContent = margin >= 25 ? '点刹控力稳如老司机，力度始终没碰 1612N 红线，稳稳停住——游戏胜利！可惜现实中，醉驾的人不会有这种手。'
@@ -1432,11 +1579,11 @@ $('menuNickname').addEventListener('change', () => { try { localStorage.setItem(
 function playerName() { return ($('menuNickname').value || '').trim().slice(0, 12) || '无名车手'; }
 function postJSON(path, data) { return fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }).then(r => r.json().catch(() => ({}))).catch(() => ({})); }
 function reportRun(result) {
-  postJSON('/api/zhijia/record', { nickname: playerName(), device: DEVICE, mode: DIFF, result: result, brakeTime: G.brakeTime || 0, reaction: G.reaction, maxForce: Math.round(G.maxForce || 0), maxSpeed: Math.round((G.maxSpeed || 0) * 3.6), margin: Math.max(0, G.z - POLE_Z), escapeTime: +(G.escapeTime || 0).toFixed(3) });
+  postJSON('/api/zhijia/record', { nickname: playerName(), device: DEVICE, mode: DIFF, result: result, brakeTime: G.brakeTime || 0, reaction: G.reaction, maxForce: Math.round(G.maxForce || 0), maxSpeed: Math.round((G.maxSpeed || 0) * 3.6), margin: remain(), escapeTime: +(G.escapeTime || 0).toFixed(3) });
 }
 function submitScore(name) {
   const el = $('rankLine'); el.textContent = '成绩同步中……';
-  sendScore({ nickname: name, device: DEVICE, brakeTime: G.brakeTime, margin: Math.max(0, G.z - POLE_Z), reaction: G.reaction }, 0);
+  sendScore({ nickname: name, device: DEVICE, brakeTime: G.brakeTime, margin: remain(), reaction: G.reaction }, 0);
 }
 function setupScoreBox() {
   const box = $('scoreBox');
@@ -1597,13 +1744,13 @@ $('btnFeedback').addEventListener('click', () => { $('startOverlay').classList.a
 $('btnFbBack').addEventListener('click', () => { $('feedbackOverlay').classList.add('hidden'); $('startOverlay').classList.remove('hidden'); });
 function backToMenu() {
   hideAllOverlays();
-  Object.assign(G, { phase: 'menu', speed: 0, z: 0, brakeHeld: false, force: 0, shake: 0 });
-  CAR.group.position.set(0, 0, 0); CAR.group.rotation.set(0, 0, 0);
+  Object.assign(G, { phase: 'menu', speed: 0, z: 0, s: 0, brakeHeld: false, force: 0, shake: 0 });
+  CAR.group.position.set(-1.75, 0, 0); CAR.group.rotation.set(0, 0, 0);
   CAR.hoodPivot.rotation.x = 0;
   CAR.airbag.visible = false; CAR.airbag.scale.setScalar(.01); airbagOut = 0;
   CAR.crackMat.opacity = 0;
-  poleGrp.rotation.set(0, 0, 0);
-  particleMode = 'off'; setFlames(false, 0);
+  poleGrp.rotation.set(0, POLE_ROT, 0);
+  particleMode = 'off'; setFlames(false);
   $('fireOverlay').style.opacity = 0; $('whiteFlash').style.opacity = 0;
   $('seqBox').style.display = 'none'; $('controls').style.display = 'none'; $('forceBox').style.display = 'none'; $('distBox').style.display = 'none';
   AU.setEngine(0, false); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
@@ -1643,10 +1790,10 @@ function step(dt, t) {
   const ph = G.phase;
   if (ph === 'cruise') {
     if (G.speed < CRUISE_V) G.speed = Math.min(CRUISE_V, G.speed + 4.5 * dt);
-    G.z -= G.speed * dt;
+    G.s += G.speed * dt;
     cdValue -= dt;
     if (cdValue < 0) cdValue = 30;
-    if (G.z - POLE_Z <= TRIGGER_DIST) triggerFailure();
+    if (remain() <= TRIGGER_DIST) triggerFailure();
   } else if (ph === 'runaway') {
     G.failTime += dt;
     cdValue = Math.max(0, cdValue - dt);
@@ -1661,14 +1808,15 @@ function step(dt, t) {
       else G.speed += clamp(TOP_V - G.speed, -RUN_ACCEL * dt, RUN_ACCEL * dt);
       G.speed = clamp(G.speed, 0, TOP_V);
       G.maxSpeed = Math.max(G.maxSpeed, G.speed);
-      const prevZ = G.z;
-      G.z -= G.speed * dt;
-      const dist = G.z - POLE_Z;
+      const prevS = G.s;
+      G.s += G.speed * dt;
+      const dist = remain();
       if (!yellowSet && dist < 150) { setLights('y'); yellowSet = true; }
       if (!redSet && dist < 70) { setLights('r'); redSet = true; $('banner').textContent = '⚠️ 红灯！智驾失灵！点刹控力，立即接管！'; }
       AU.setScream(ratio, G.brakeHeld);
       AU.setScreech(G.force > 350 && G.speed > 8);
-      if (prevZ > POLE_Z && G.z <= POLE_Z) {
+      if (prevS < PATH_LEN && G.s >= PATH_LEN) {
+        G.s = PATH_LEN;
         if (G.speed > 6) doCrash();
         else { G.speed = 0; G.brakeTime = G.failTime; showResult('win'); }
       } else if (G.speed <= .05 && G.force > 5) {
@@ -1678,7 +1826,7 @@ function step(dt, t) {
   } else if (ph === 'snap') {
     G.speed = clamp(G.speed + RUN_ACCEL * dt, 0, TOP_V);
     G.maxSpeed = Math.max(G.maxSpeed, G.speed);
-    G.z -= G.speed * dt;
+    G.s += G.speed * dt;
     snapTimer -= dt;
     if (snapTimer <= 0) showResult('snap');
   } else if (ph === 'crash') {
@@ -1715,12 +1863,17 @@ function step(dt, t) {
     if (Math.abs(c.x) > 168) c.grp.visible = false;
   });
 
-  /* ---- 车辆与灯光跟随 ---- */
-  CAR.group.position.z = G.z;
+  /* ---- 车辆与灯光跟随（v36：沿路线曲线定位 + 转向） ---- */
+  const pose = pathPose(G.s || 0);
+  G.px = pose.x; G.pz = pose.z; G.hx = pose.hx; G.hz = pose.hz; G.z = pose.z;
+  CAR.group.position.set(pose.x, 0, pose.z);
+  CAR.group.rotation.y = pose.th;
+  const cth = Math.cos(pose.th), sth = Math.sin(pose.th);
+  const off = (lx, ly, lz) => [pose.x + lx * cth + lz * sth, ly, pose.z - lx * sth + lz * cth];
   const wsp = G.speed * dt / .365; if (wsp) CAR.wheels.forEach(w => w.rotation.x -= wsp);
-  headlight.position.set(0, .75, G.z - 2.2);
-  headlight.target.position.set(0, 0, G.z - 32);
-  carGlow.position.set(0, .72, G.z - 2.45);
+  headlight.position.set(...off(0, .75, -2.2));
+  headlight.target.position.set(...off(0, 0, -32));
+  carGlow.position.set(...off(0, .72, -2.45));
 
   /* ---- 撞毁演出 ---- */
   if ((ph === 'crash' || ph === 'seq' || ph === 'burned' || ph === 'done') && airbagOut < 1 && impactSpeed > 0) {
@@ -1737,7 +1890,7 @@ function step(dt, t) {
     });
     fireLight.intensity = 22 + Math.sin(t * 41) * 7 + Math.random() * 6;
   }
-  updateParticles(dt, 0, .8, G.z - 2.2);
+  updateParticles(dt, G.px + G.hx * 2.2, .8, G.pz + G.hz * 2.2);
 
   /* ---- 相机 ---- */
   G.shake *= Math.max(0, 1 - 2.6 * dt);
@@ -1745,25 +1898,28 @@ function step(dt, t) {
   const extVis = VIEW !== 'inside' || ph === 'menu';
   if (CAR._extVis !== extVis) { CAR._extVis = extVis; CAR.exterior.forEach(m => m.visible = extVis); }
   if (ph === 'menu') {
-    camera.position.set(Math.sin(t * .28) * 4.1, 1.55 + Math.sin(t * .17) * .25, Math.cos(t * .28) * 4.1);
-    camera.lookAt(0, .72, -.4);
+    camera.position.set(G.px + Math.sin(t * .28) * 4.1, 1.55 + Math.sin(t * .17) * .25, G.pz + Math.cos(t * .28) * 4.1);
+    camera.lookAt(G.px, .72, G.pz - .4);
   } else if (VIEW === 'outside') {
     const drunkO = ph === 'cruise' ? 1 : .5;
     const oR = 8.8;
+    const ox = Math.sin(orbit.th) * oR, oz = Math.cos(orbit.th) * oR;
     camera.position.set(
-      Math.sin(orbit.th) * oR + Math.sin(t * .43) * .05 * drunkO + (Math.random() - .5) * G.shake * .3,
+      G.px + ox * cth + oz * sth + Math.sin(t * .43) * .05 * drunkO + (Math.random() - .5) * G.shake * .3,
       3.05 + orbit.ph * 5 + Math.sin(t * 1.7) * .03 * drunkO + (Math.random() - .5) * G.shake * .2,
-      G.z + Math.cos(orbit.th) * oR);
-    camera.lookAt(Math.sin(orbit.th) * -3, .7, G.z - Math.cos(orbit.th) * 2 - 4);
+      G.pz - ox * sth + oz * cth);
+    const lx2 = Math.sin(orbit.th) * -3, lz2 = -Math.cos(orbit.th) * 2 - 4;
+    camera.lookAt(G.px + lx2 * cth + lz2 * sth, .7, G.pz - lx2 * sth + lz2 * cth);
   } else {
     const drunk = ph === 'cruise' ? 1 : (G.reaction === null ? .55 : .22);
     const swayX = Math.sin(t * .43) * .018 * drunk, swayR = Math.sin(t * .6) * .011 * drunk;
     let pitch = (ph === 'crash' || ph === 'seq' || ph === 'burned') ? -.14 : -.12;
+    const ioff = off(-.3, 1.28, .7);
     camera.position.set(
-      -.3 + swayX + (Math.random() - .5) * G.shake * .16,
-      1.28 + Math.sin(t * 1.7) * .008 * drunk + (Math.random() - .5) * G.shake * .12,
-      G.z + .7);
-    camera.rotation.set(pitch + (Math.random() - .5) * G.shake * .05, 0, swayR + (Math.random() - .5) * G.shake * .05);
+      ioff[0] + swayX + (Math.random() - .5) * G.shake * .16,
+      ioff[1] + Math.sin(t * 1.7) * .008 * drunk + (Math.random() - .5) * G.shake * .12,
+      ioff[2]);
+    camera.rotation.set(pitch + (Math.random() - .5) * G.shake * .05, pose.th, swayR + (Math.random() - .5) * G.shake * .05);
   }
 
   /* ---- 踏板动画 ---- */
@@ -1781,7 +1937,7 @@ function step(dt, t) {
   const kmh = G.speed * KMH;
   $('speedNum').textContent = Math.round(kmh);
   $('speedNum').className = kmh >= 118 ? 'hot' : '';
-  if (ph === 'runaway' || ph === 'snap') $('distNum').textContent = Math.max(0, Math.round(G.z - POLE_Z));
+  if (ph === 'runaway' || ph === 'snap') $('distNum').textContent = Math.round(remain());
   if (ph === 'runaway') {
     const ratio = clamp(G.force / FORCE_MAX, 0, 1);
     $('forceNum').textContent = Math.round(G.force);
@@ -1797,13 +1953,14 @@ function step(dt, t) {
     CAR.screenTick(kmh);
   }
 }
-G.phase = 'menu'; G.speed = 0; G.z = 0; G.shake = 0; G.force = 0;
+G.phase = 'menu'; G.speed = 0; G.z = 0; G.s = 0; G.px = -1.75; G.pz = 0; G.hx = 0; G.hz = -1; G.shake = 0; G.force = 0;
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05);
   step(dt, clock.elapsedTime);
   renderer.render(scene, camera);
 }
+
 animate();
 </script>
 </body>
