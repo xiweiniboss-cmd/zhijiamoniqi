@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v37 -->
+<!-- zhijia v38 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1043,8 +1043,8 @@ function arrowTexture(kind) {
   }
   return new THREE.CanvasTexture(c);
 }
-/* 四车道：左转+掉头 / 左转 / 直行 / 右转 */
-[['leftUturn', -5.25, 3.8], ['left', -1.75, 3.0], ['straight', 1.75, 3.0], ['right', 5.25, 3.0]].forEach(([kind, x, w]) => {
+/* 四车道：左转+掉头 / 左转 / 左转 / 右转（第三车道 2026-10-24 老板纠正：是左转，不是直行） */
+[['leftUturn', -5.25, 3.8], ['left', -1.75, 3.0], ['left', 1.75, 3.0], ['right', 5.25, 3.0]].forEach(([kind, x, w]) => {
   const a = new THREE.Mesh(new THREE.PlaneGeometry(w, 5.4), new THREE.MeshBasicMaterial({ map: arrowTexture(kind), transparent: true, depthWrite: false }));
   a.rotation.x = -Math.PI / 2; a.position.set(x, .025, -267); scene.add(a);
 });
