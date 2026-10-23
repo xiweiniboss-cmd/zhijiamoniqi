@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v33 -->
+<!-- zhijia v34 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -968,11 +968,43 @@ function stripeTexture() {
   g.beginPath(); g.moveTo(24, 0); g.lineTo(64, 40); g.lineTo(64, 64); g.lineTo(44, 64); g.lineTo(0, 20); g.lineTo(0, 0); g.closePath(); g.fill();
   return new THREE.CanvasTexture(c);
 }
-const poleGrp = new THREE.Group(); poleGrp.position.set(0, 0, POLE_Z); scene.add(poleGrp);
-const poleMesh = new THREE.Mesh(new THREE.CylinderGeometry(.16, .20, 1.15, 12), std(0x3f3a33, .85));
-poleMesh.position.y = .575; poleGrp.add(poleMesh);
-const poleSign = new THREE.Mesh(new THREE.BoxGeometry(.72, .72, .06), new THREE.MeshBasicMaterial({ map: stripeTexture() }));
-poleSign.position.set(0, .8, .21); poleGrp.add(poleSign);
+/* 撞击目标 v34：情报板龙门架立柱（双立柱框架 + 大黑面板 + 中部开口 + 下部箱体 + 基座脚板）
+   视觉位置 = POLE_Z + 2.60：车头在车组原点前方 2.45m、柱厚 .30，撞毁触发瞬间车头正好吻上柱面；
+   碰撞/计分仍以原点对 POLE_Z 计算，玩法数值不变 */
+const poleGrp = new THREE.Group(); poleGrp.position.set(0, 0, POLE_Z + 2.60); scene.add(poleGrp);
+{
+  const frameMat = std(0x23262c, .8, .2);
+  const panelMat = std(0x0a0c10, .92, .05);
+  const lowBoxMat = std(0x33363b, .9, .1);
+  const PH = 6.2, PW = 1.08, legW = .16, PD = .30;
+  [-1, 1].forEach(s => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(legW, PH, PD), frameMat);
+    leg.position.set(s * (PW / 2 - legW / 2), PH / 2, 0); poleGrp.add(leg);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(.30, .05, .46), frameMat);
+    foot.position.set(s * (PW / 2 - legW / 2), .025, 0); poleGrp.add(foot);
+    [-0.09, 0.09].forEach(dz => {
+      const bolt = new THREE.Mesh(new THREE.CylinderGeometry(.022, .022, .07, 6), lowBoxMat);
+      bolt.position.set(s * (PW / 2 - legW / 2) + .09, .07, dz); poleGrp.add(bolt);
+    });
+  });
+  const topBeam = new THREE.Mesh(new THREE.BoxGeometry(PW, .22, PD), frameMat);
+  topBeam.position.set(0, PH - .11, 0); poleGrp.add(topBeam);
+  const panelFrame = new THREE.Mesh(new THREE.BoxGeometry(.88, 2.92, .05), frameMat);
+  panelFrame.position.set(0, 4.42, 0); poleGrp.add(panelFrame);
+  [-1, 1].forEach(s => {
+    const face = new THREE.Mesh(new THREE.BoxGeometry(.78, 2.82, .02), panelMat);
+    face.position.set(0, 4.42, s * .033); poleGrp.add(face);
+  });
+  const beam1 = new THREE.Mesh(new THREE.BoxGeometry(PW - legW * 2, .14, PD * .85), frameMat);
+  beam1.position.set(0, 2.90, 0); poleGrp.add(beam1);
+  const beam2 = new THREE.Mesh(new THREE.BoxGeometry(PW - legW * 2, .13, PD * .85), frameMat);
+  beam2.position.set(0, 1.92, 0); poleGrp.add(beam2);
+  const lowBox = new THREE.Mesh(new THREE.BoxGeometry(.78, 1.26, .24), lowBoxMat);
+  lowBox.position.set(0, 1.23, 0); poleGrp.add(lowBox);
+  const seam = new THREE.Mesh(new THREE.BoxGeometry(.78, .03, .245), frameMat);
+  seam.position.set(0, .68, 0); poleGrp.add(seam);
+  poleGrp.traverse(o => { if (o.isMesh) o.castShadow = true; });
+}
 const signPole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 2.6, 8), std(0x666c74, .6, .5));
 signPole.position.set(6.8, 1.3, -316.5); scene.add(signPole);
 function pedSignTexture() {
@@ -1219,7 +1251,7 @@ function pedalSnap() {
 function doCrash() {
   impactSpeed = G.speed;
   G.phase = 'crash'; crashTimer = .9; G.shake = 1.3; G.speed = 0;
-  poleGrp.rotation.x = -.55;
+  /* v34：龙门架立柱撞后保持直立（不再倾倒） */
   particleMode = 'smoke';
   AU.crash(); AU.alarm(false); AU.setScreech(false); AU.setScream(0, false); AU.setEngine(0, false);
   $('whiteFlash').style.opacity = .85;
