@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v42 -->
+<!-- zhijia v43 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -763,7 +763,7 @@ function buildCar(paintColor, withInterior) {
   strip.position.set(0, -.345, -1.26); strip.rotation.x = -.1; cockpit.add(strip);
   refs.stripMat = stripMat;
   const scrBezel = new THREE.Mesh(new THREE.BoxGeometry(.39, .24, .02), trim2);
-  scrBezel.position.set(.30, -.165, -1.252); scrBezel.rotation.x = .08; cockpit.add(scrBezel);
+  scrBezel.position.set(.30, -.165, -1.252); scrBezel.rotation.x = -.04; cockpit.add(scrBezel);
   const screenGroup = new THREE.Group(); screenGroup.position.set(.30, -.165, -1.232); screenGroup.rotation.x = -.04; screenGroup.rotation.y = -.08; cockpit.add(screenGroup);
   const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.375, .22, .03), std(0x14161a, .35, .5)); screenGroup.add(screenBody);
   const scrCanvas = document.createElement('canvas'); scrCanvas.width = 512; scrCanvas.height = 288;
