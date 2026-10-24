@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v38 -->
+<!-- zhijia v39 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -762,13 +762,13 @@ function buildCar(paintColor, withInterior) {
   const strip = new THREE.Mesh(new THREE.BoxGeometry(2.2, .016, .012), stripMat);
   strip.position.set(0, -.345, -1.26); strip.rotation.x = -.1; cockpit.add(strip);
   refs.stripMat = stripMat;
-  const scrBezel = new THREE.Mesh(new THREE.BoxGeometry(.47, .335, .02), trim2);
-  scrBezel.position.set(.27, -.165, -1.252); scrBezel.rotation.x = .08; cockpit.add(scrBezel);
-  const screenGroup = new THREE.Group(); screenGroup.position.set(.27, -.165, -1.232); screenGroup.rotation.x = -.04; screenGroup.rotation.y = -.08; cockpit.add(screenGroup);
-  const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.43, .295, .03), std(0x14161a, .35, .5)); screenGroup.add(screenBody);
+  const scrBezel = new THREE.Mesh(new THREE.BoxGeometry(.32, .228, .02), trim2);
+  scrBezel.position.set(.34, -.165, -1.252); scrBezel.rotation.x = .08; cockpit.add(scrBezel);
+  const screenGroup = new THREE.Group(); screenGroup.position.set(.34, -.165, -1.232); screenGroup.rotation.x = -.04; screenGroup.rotation.y = -.08; cockpit.add(screenGroup);
+  const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.31, .215, .03), std(0x14161a, .35, .5)); screenGroup.add(screenBody);
   const scrCanvas = document.createElement('canvas'); scrCanvas.width = 512; scrCanvas.height = 288;
   const scrTex = new THREE.CanvasTexture(scrCanvas);
-  const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(.408, .23), new THREE.MeshBasicMaterial({ map: scrTex }));
+  const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(.29, .163), new THREE.MeshBasicMaterial({ map: scrTex }));
   scrMesh.position.z = .016; screenGroup.add(scrMesh);
   let screenMode = 'normal', scrTickCount = 0, scrBlink = false;
   function drawScreenNormal(kmh) {
