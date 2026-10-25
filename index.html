@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v47 -->
+<!-- zhijia v48 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -134,6 +134,12 @@
   #surviveOverlay { background:linear-gradient(180deg, transparent 0%, transparent 40%, rgba(4,8,16,.7) 60%, rgba(4,8,16,.95) 100%); backdrop-filter:none; align-items:flex-end; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px); animation:fireIn .8s ease-out; }
   #surviveOverlay .card { background:rgba(10,15,26,.82); max-height:50vh; }
   #surviveVideo.hide { display:none; }
+  #resultOverlay.scene { background:linear-gradient(180deg, transparent 0%, transparent 40%, rgba(4,8,16,.7) 60%, rgba(4,8,16,.95) 100%); backdrop-filter:none; align-items:flex-end; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px); animation:fireIn .8s ease-out; }
+  #resultOverlay.scene .card { background:rgba(10,15,26,.82); max-height:52vh; }
+  @media (orientation:landscape) {
+    #resultOverlay.scene { background:linear-gradient(90deg, transparent 0%, transparent 42%, rgba(4,8,16,.72) 62%, rgba(4,8,16,.95) 100%); justify-content:flex-end; align-items:center; padding-right:3vw; padding-bottom:0; }
+    #resultOverlay.scene .card { width:min(42vw,440px); max-height:90vh; }
+  }
   #btnSvVideo { background:none; border:none; color:#9cc4ff; font-size:14px; margin-top:8px; text-decoration:underline; cursor:pointer; display:block; margin-left:auto; margin-right:auto; }
   @media (orientation:landscape) {
     #surviveOverlay { background:linear-gradient(90deg, transparent 0%, transparent 42%, rgba(4,8,16,.72) 62%, rgba(4,8,16,.95) 100%); justify-content:flex-end; align-items:center; padding-right:3vw; padding-bottom:0; }
@@ -1516,7 +1522,7 @@ function setFlames(on) {
     fireLight.position.copy(new THREE.Vector3(0, 1.6, -.6).applyMatrix4(CAR.group.matrixWorld));
     fireLight.distance = 22;
   }
-  if (!on) { survivor.visible = false; G.survivorCam = false; $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
+  if (!on) { endParkScene(); survivor.visible = false; G.survivorCam = false; $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
 }
 /* ================= 游戏逻辑 ================= */
 const CRUISE_V = 18.3, RUN_ACCEL = 6.0, TRIGGER_DIST = 200;
@@ -1668,6 +1674,84 @@ function survive() {
     `接管反应 <b style="float:right;color:#ffd166">${G.reaction === null ? '—' : G.reaction.toFixed(2) + ' 秒'}</b><br>` +
     `逃生顺序 <b style="float:right;color:#ffd166">3 秒内全对 ✔</b>`;
 }
+/* ---------- 刹停成功：靠右停到第四车道，双闪，人站路边打电话 ---------- */
+const PARK_POSE = { x: 5.25, z: -196, hx: 0, hz: -1, th: 0 };
+const hazard = (() => {
+  const g = new THREE.Group(); g.visible = false; CAR.group.add(g);
+  const amber = new THREE.MeshBasicMaterial({ color: 0xffa31a });
+  const sprites = [];
+  [[-.86, .78, -2.58], [.86, .78, -2.58], [-.8, 1.05, 2.7], [.8, 1.05, 2.7], [-.95, .9, -1.9], [.95, .9, -1.9]].forEach(([x, y, z]) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(.2, .07, .04), amber); m.position.set(x, y, z); g.add(m);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffa020, transparent: true, opacity: .95, depthWrite: false, blending: THREE.AdditiveBlending }));
+    sp.scale.setScalar(z > 0 ? 1.5 : 1.2); sp.position.set(x, y, z + Math.sign(z) * .08); g.add(sp); sprites.push(sp);
+  });
+  const light = new THREE.PointLight(0xffa020, 0, 9); light.position.set(0, .9, 3.4); g.add(light);
+  g.userData.blink = on => { g.children.forEach(c => { if (c.isMesh) c.material.color.setHex(on ? 0xffb030 : 0x3a2606); }); sprites.forEach(s => s.visible = on); light.intensity = on ? 5 : 0; };
+  return g;
+})();
+const caller = (() => {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const coat = new THREE.MeshStandardMaterial({ color: 0x323843, roughness: .85 });
+  const pants = new THREE.MeshStandardMaterial({ color: 0x1b1d23, roughness: .9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xc69676, roughness: .7 });
+  const hair = new THREE.MeshStandardMaterial({ color: 0x15110e, roughness: .9 });
+  const shoe = new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: .6 });
+  const limb = (a, b, r, m) => {
+    a = new THREE.Vector3(...a); b = new THREE.Vector3(...b);
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, a.distanceTo(b), 4, 8), m);
+    mesh.position.copy(a).add(b).multiplyScalar(.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    g.add(mesh); return mesh;
+  };
+  limb([-.1, .92, 0], [-.11, .08, .02], .075, pants);
+  limb([.1, .92, 0], [.13, .08, -.02], .075, pants);
+  [[-.11, .02], [.13, -.02]].forEach(([x, z]) => { const f = new THREE.Mesh(new THREE.BoxGeometry(.1, .07, .25), shoe); f.position.set(x, .035, z + .05); g.add(f); });
+  const torso = limb([0, .98, 0], [0, 1.45, 0], .18, coat); torso.scale.set(1.15, 1, .75);
+  limb([0, 1.52, 0], [0, 1.58, .01], .05, skin);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.11, 16, 12), skin); head.position.set(0, 1.71, .01); head.rotation.z = .18; g.add(head);
+  const hairM = new THREE.Mesh(new THREE.SphereGeometry(.115, 16, 12, 0, Math.PI * 2, 0, Math.PI * .55), hair); hairM.position.set(0, 1.725, 0); g.add(hairM);
+  // 左手叉腰 / 自然下垂
+  limb([-.22, 1.48, 0], [-.27, 1.18, .02], .052, coat);
+  limb([-.27, 1.18, .02], [-.24, .92, .06], .046, coat);
+  const lh = new THREE.Mesh(new THREE.SphereGeometry(.046, 10, 8), skin); lh.position.set(-.24, .88, .07); g.add(lh);
+  // 右手举手机贴耳
+  limb([.22, 1.48, 0], [.27, 1.22, .06], .052, coat);
+  limb([.27, 1.22, .06], [.13, 1.66, .06], .046, coat);
+  const rh = new THREE.Mesh(new THREE.SphereGeometry(.046, 10, 8), skin); rh.position.set(.12, 1.69, .06); g.add(rh);
+  const phone = new THREE.Mesh(new THREE.BoxGeometry(.018, .15, .075), new THREE.MeshStandardMaterial({ color: 0x111, emissive: 0x6fa8ff, emissiveIntensity: .9 }));
+  phone.position.set(.105, 1.72, .05); phone.rotation.z = .2; g.add(phone);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x8ab8ff, transparent: true, opacity: .5, depthWrite: false, blending: THREE.AdditiveBlending }));
+  glow.scale.setScalar(.35); glow.position.copy(phone.position); g.add(glow);
+  g.userData.glow = glow;
+  const fill = new THREE.PointLight(0xbcd2ff, 2.2, 5); fill.position.set(-.6, 2.2, 1.2); g.add(fill);
+  return g;
+})();
+/* 三角警示牌（车后方） */
+const warnTri = (() => {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const red = new THREE.MeshStandardMaterial({ color: 0xff2a1a, emissive: 0xaa1000, emissiveIntensity: .8 });
+  const L = .5, H = L * Math.sqrt(3) / 2;
+  [[-L / 4, H / 2, Math.PI / 6 * -2 + Math.PI / 2 - Math.PI / 6], [L / 4, H / 2, Math.PI / 6], [0, 0, Math.PI / 2]].forEach(([x, y, r], i) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(.05, L, .02), red);
+    b.position.set(x, y + .06, 0); b.rotation.z = i === 0 ? -Math.PI / 6 : i === 1 ? Math.PI / 6 : Math.PI / 2; g.add(b);
+  });
+  const st = new THREE.Mesh(new THREE.BoxGeometry(.36, .02, .2), new THREE.MeshStandardMaterial({ color: 0x222 })); st.position.y = .01; g.add(st);
+  return g;
+})();
+let parkTimer = 0;
+function startParkScene() {
+  G.phase = 'parked'; parkTimer = 2.6; G.parked = true; G.speed = 0;
+  hazard.visible = true; caller.visible = true; warnTri.visible = true;
+  caller.position.set(7.75, .13, PARK_POSE.z + 2.2); caller.rotation.y = -.75;
+  warnTri.position.set(PARK_POSE.x, 0, PARK_POSE.z + 6);
+  $('banner').className = ''; $('banner').textContent = '✅ 已靠右停车 · 双闪已开 · 正在报警求助';
+  $('vignette').className = ''; $('controls').style.display = 'none'; $('forceBox').style.display = 'none'; $('distBox').style.display = 'none';
+  $('speedBox').style.visibility = 'hidden';
+}
+function endParkScene() {
+  G.parked = false; G.parkT0 = undefined; hazard.visible = false; caller.visible = false; warnTri.visible = false;
+  $('speedBox').style.visibility = ''; $('resultOverlay').classList.remove('scene');
+}
 function showSurviveCard() {
   G.phase = 'done';
   $('surviveOverlay').classList.remove('hidden');
@@ -1696,9 +1780,15 @@ function showResult(kind) {
     $('resultStats').innerHTML = `断裂力度 <b>1612 N</b><br>最高速度 <b>${kmh} km/h</b><br>接管反应 <b>${react}</b>`;
     $('resultNote').textContent = '一脚闷到底，力度冲过 1612N，刹车踏板应声而断，车辆彻底失去制动——游戏直接失败。记住：点刹控力，才是这款游戏的活路。';
   }
+  if (kind === 'win') { $('resultOverlay').classList.add('scene'); startParkScene(); return; }
+  $('resultOverlay').classList.remove('scene');
   $('resultOverlay').classList.remove('hidden');
-  if (kind === 'win') { reportRun('win'); setupScoreBox(); }
-  else reportRun('snap');
+  reportRun('snap');
+}
+function showWinCard() {
+  G.phase = 'done';
+  $('resultOverlay').classList.remove('hidden');
+  reportRun('win'); setupScoreBox();
 }
 
 /* ================= 输入 ================= */
@@ -2040,6 +2130,9 @@ function step(dt, t) {
     G.seqT -= dt;
     $('countBar').style.width = Math.max(0, G.seqT / 3 * 100) + '%';
     if (G.seqT <= 0) fireGameOver('3 秒过去了，你没能完成逃生。');
+  } else if (ph === 'parked') {
+    parkTimer -= dt;
+    if (parkTimer <= 0) showWinCard();
   } else if (ph === 'escaped') {
     burnTimer -= dt;
     if (burnTimer <= 0) showSurviveCard();
@@ -2070,7 +2163,7 @@ function step(dt, t) {
   });
 
   /* ---- 车辆与灯光跟随（v36：沿路线曲线定位 + 转向） ---- */
-  const pose = pathPose(G.s || 0);
+  const pose = G.parked ? PARK_POSE : pathPose(G.s || 0);
   G.px = pose.x; G.pz = pose.z; G.hx = pose.hx; G.hz = pose.hz; G.z = pose.z;
   CAR.group.position.set(pose.x, 0, pose.z);
   CAR.group.rotation.y = pose.th;
@@ -2117,13 +2210,22 @@ function step(dt, t) {
 
   /* ---- 相机 ---- */
   G.shake *= Math.max(0, 1 - 2.6 * dt);
-  CAR.cockpit.visible = ph !== 'menu' && VIEW === 'inside' && !G.burning;
+  CAR.cockpit.visible = ph !== 'menu' && VIEW === 'inside' && !G.burning && !G.parked;
   if (G.survivorCam && camera.fov !== 50) { camera.fov = 50; camera.updateProjectionMatrix(); }
-  const extVis = VIEW !== 'inside' || ph === 'menu' || G.burning;
+  const extVis = VIEW !== 'inside' || ph === 'menu' || G.burning || G.parked;
   if (CAR._extVis !== extVis) { CAR._extVis = extVis; CAR.exterior.forEach(m => m.visible = extVis); }
   if (ph === 'menu') {
     camera.position.set(G.px + Math.sin(t * .28) * 4.7, 1.55 + Math.sin(t * .17) * .25, G.pz + Math.cos(t * .28) * 4.7);
     camera.lookAt(G.px, .72, G.pz - .4);
+  } else if (G.parked) {
+    /* 刹停成功：车后方看过去，双闪 + 人站在路边打电话 */
+    const portrait = innerWidth / innerHeight < .8;
+    hazard.userData.blink(Math.floor(t * 1.6) % 2 === 0);
+    caller.userData.glow.material.opacity = .4 + Math.sin(t * 3) * .12;
+    const k = Math.min(t - (G.parkT0 ??= t), 6);
+    camera.position.set(portrait ? 3.4 : 2.8, (portrait ? 2.0 : 1.7), PARK_POSE.z + 10 - k * .08);
+    camera.lookAt(portrait ? 6.1 : 6.9, portrait ? -1.7 : .5, PARK_POSE.z + 3);
+    if (!portrait) camera.rotateY(-.24);
   } else if (G.survivorCam) {
     /* 逃生成功：人坐在路沿打电话，身后整车在烧 */
     const portrait = innerWidth / innerHeight < .8;
