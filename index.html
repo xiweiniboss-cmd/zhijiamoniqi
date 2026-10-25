@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v43 -->
+<!-- zhijia v44 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -20,6 +20,9 @@
   #speedNum { font-size:52px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; text-shadow:0 2px 14px rgba(0,0,0,.8); }
   #speedNum.hot { color:#ff5d5d; }
   #speedUnit { font-size:13px; opacity:.75; margin-top:2px; }
+  body.view-inside #speedBox { background:rgba(8,12,20,.62); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:6px 12px 5px; backdrop-filter:blur(4px); }
+  body.view-inside #speedNum { font-size:40px; }
+  body.view-inside #speedUnit { opacity:.9; }
   #distBox { position:absolute; left:14px; top:calc(env(safe-area-inset-top,0px) + 58px); font-size:14px; background:rgba(10,16,28,.65); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:7px 11px; display:none; }
   #distBox b { color:#ffd166; font-size:17px; font-variant-numeric:tabular-nums; }
   #vignette { position:fixed; inset:0; pointer-events:none; z-index:6; opacity:0; background:radial-gradient(ellipse at center, transparent 52%, rgba(255,0,0,.5) 100%); }
@@ -499,7 +502,7 @@ function buildCar(paintColor, withInterior) {
   const paintDark = std(0x14161a, .6, .3);
   const glass = std(0x0d1622, .08, .8);
   const trim = std(0x191c21, .88), trim2 = std(0x22262e, .8);
-  const fabric = std(0xcabfa9, .85);
+  const fabric = std(0x2e2c2a, .85);
   /* ---- 外观（v37 问界 M9：老板照片还原；剪影挤出 + 分体引擎盖挂 hoodPivot） ---- */
   const chromeM = std(0xd7dde6, .22, .9);
   const darkTrim = std(0x1c1e22, .5, .3);
@@ -747,19 +750,31 @@ function buildCar(paintColor, withInterior) {
   const firewall = new THREE.Mesh(new THREE.BoxGeometry(1.72, .78, .06), trim); firewall.position.set(0, .72, -1.02); firewall.rotation.x = .35; car.add(firewall);
   /* ---- 座舱（镜头空间：按画面坐标摆位，互不重叠） ---- */
   const cockpit = new THREE.Group(); refs.cockpit = cockpit;
-  const dash = new THREE.Mesh(new THREE.BoxGeometry(2.6, .435, .12), trim); dash.position.set(0, -.16, -1.32); dash.rotation.x = .08; cockpit.add(dash);
-  const dashTop = new THREE.Mesh(new THREE.BoxGeometry(2.6, .04, .24), trim2); dashTop.position.set(0, .085, -1.36); dashTop.rotation.x = .12; cockpit.add(dashTop);
-  const dashBand = new THREE.Mesh(new THREE.BoxGeometry(2.6, .13, .02), std(0xd9d0bf, .6, 0));
+  const dash = new THREE.Mesh(new THREE.BoxGeometry(3.3, .435, .12), trim); dash.position.set(0, -.16, -1.32); dash.rotation.x = .08; cockpit.add(dash);
+  const dashTop = new THREE.Mesh(new THREE.BoxGeometry(3.3, .04, .24), trim2); dashTop.position.set(0, .085, -1.36); dashTop.rotation.x = .12; cockpit.add(dashTop);
+  const dashBand = new THREE.Mesh(new THREE.BoxGeometry(3.3, .13, .02), std(0x6b6358, .7, 0));
   dashBand.position.set(0, -.26, -1.256); dashBand.rotation.x = .08; cockpit.add(dashBand);
-  const dashTrim = new THREE.Mesh(new THREE.BoxGeometry(2.6, .018, .012), std(0xb9bdc4, .35, .9));
+  const dashTrim = new THREE.Mesh(new THREE.BoxGeometry(3.3, .018, .012), std(0xb9bdc4, .35, .9));
   dashTrim.position.set(0, -.185, -1.26); dashTrim.rotation.x = .08; cockpit.add(dashTrim);
   [-.62, .62].forEach(x => {
     const vent = new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .03), paintDark);
     vent.position.set(x * .65, -.05, -1.25); vent.rotation.x = .08; cockpit.add(vent);
   });
+  /* ---- A 柱 + 挡风下沿（镜头空间，竖屏时自然出画） ---- */
+  const pillarMat = std(0x111317, .9);
+  [[-1.12, .06, -1.38, -.66, 1.0, -.5], [1.42, .06, -1.38, 1.0, 1.0, -.5]].forEach(([x0, y0, z0, x1, y1, z1]) => {
+    const a = new THREE.Vector3(x0, y0, z0), b = new THREE.Vector3(x1, y1, z1);
+    const len = a.distanceTo(b);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(.13, len, .09), pillarMat);
+    p.position.copy(a).add(b).multiplyScalar(.5);
+    p.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    cockpit.add(p);
+  });
+  const cowl = new THREE.Mesh(new THREE.BoxGeometry(3.3, .025, .1), std(0x0b0c0f, .95));
+  cowl.position.set(0, .11, -1.44); cockpit.add(cowl);
   /* ---- 大悬浮中控屏（新能源车风格） ---- */
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x2f7bff });
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(2.2, .016, .012), stripMat);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(2.9, .014, .012), stripMat);
   strip.position.set(0, -.345, -1.26); strip.rotation.x = -.1; cockpit.add(strip);
   refs.stripMat = stripMat;
   const scrBezel = new THREE.Mesh(new THREE.BoxGeometry(.39, .24, .02), trim2);
@@ -776,43 +791,22 @@ function buildCar(paintColor, withInterior) {
     const grad = g.createLinearGradient(0, 0, 0, 288);
     grad.addColorStop(0, '#0b1a2e'); grad.addColorStop(1, '#060a14');
     g.fillStyle = grad; g.fillRect(0, 0, 512, 288);
-    g.fillStyle = '#dbeafe'; g.font = '15px sans-serif'; g.textAlign = 'left';
-    g.fillText('23:25', 14, 24);
-    g.fillStyle = '#123a6b'; g.beginPath(); g.roundRect(168, 8, 176, 22, 11); g.fill();
-    g.fillStyle = '#7cc0ff'; g.textAlign = 'center'; g.font = '13px sans-serif';
-    g.fillText('田介智驾 · 已开启', 256, 23);
-    g.fillStyle = '#dbeafe'; g.textAlign = 'right'; g.font = '13px sans-serif';
-    g.fillText('5G ▂▄▆', 500, 24);
-    /* 左侧车速区 */
-    g.textAlign = 'center'; g.fillStyle = '#8fa8c8'; g.font = '14px sans-serif';
-    g.fillText('车速', 82, 74);
-    g.fillStyle = kmh >= 120 ? '#ff5148' : '#ffffff'; g.font = 'bold 74px sans-serif';
-    g.fillText(String(Math.round(kmh)), 82, 138);
-    g.fillStyle = '#8fa8c8'; g.font = '14px sans-serif'; g.fillText('km/h', 82, 162);
-    g.fillStyle = '#57b6ff'; g.font = 'bold 24px sans-serif'; g.fillText('D', 82, 196);
-    g.strokeStyle = '#3d5a80'; g.lineWidth = 2; g.strokeRect(30, 218, 104, 13);
-    g.fillStyle = '#51cf66'; g.fillRect(32, 220, 76, 9);
-    g.fillStyle = '#8fa8c8'; g.font = '12px sans-serif'; g.fillText('续航 412 km', 82, 250);
-    /* 右侧导航区 */
-    g.fillStyle = '#0d1b2e'; g.beginPath(); g.roundRect(164, 44, 334, 196, 12); g.fill();
-    g.strokeStyle = '#2c425f'; g.lineWidth = 7;
-    g.beginPath(); g.moveTo(190, 220); g.lineTo(470, 220); g.stroke();
-    g.beginPath(); g.moveTo(330, 60); g.lineTo(330, 226); g.stroke();
-    g.beginPath(); g.moveTo(196, 108); g.lineTo(464, 108); g.stroke();
-    g.strokeStyle = '#3b82f6'; g.lineWidth = 6; g.beginPath();
-    g.moveTo(330, 226); g.lineTo(330, 130); g.quadraticCurveTo(330, 108, 306, 108); g.lineTo(238, 108); g.stroke();
-    g.fillStyle = '#ffffff'; g.beginPath();
-    g.moveTo(330, 208); g.lineTo(320, 226); g.lineTo(340, 226); g.closePath(); g.fill();
-    g.fillStyle = '#ff5148'; g.beginPath(); g.arc(232, 108, 6, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#cfe3ff'; g.font = '14px sans-serif'; g.textAlign = 'left';
-    g.fillText('前方路口左转 · 杆子就在对面', 178, 232);
-    /* 底部 Dock */
-    const icons = ['♫', '⚡', '☎', '❄', '⚙'];
-    icons.forEach((ic, i) => {
-      const x = 62 + i * 98;
-      g.fillStyle = 'rgba(255,255,255,0.08)'; g.beginPath(); g.arc(x, 266, 15, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#cfe3ff'; g.font = '16px sans-serif'; g.textAlign = 'center'; g.fillText(ic, x, 272);
-    });
+    /* 顶部：智驾状态（大字） */
+    g.fillStyle = '#123a6b'; g.beginPath(); g.roundRect(96, 12, 320, 44, 22); g.fill();
+    g.fillStyle = '#9fd0ff'; g.textAlign = 'center'; g.font = 'bold 26px sans-serif';
+    g.fillText('田介智驾 · 已开启', 256, 43);
+    /* 中部：左转箭头 + 提示 */
+    g.strokeStyle = '#3b82f6'; g.lineWidth = 20; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(118, 200); g.lineTo(118, 132); g.quadraticCurveTo(118, 110, 96, 110); g.lineTo(72, 110); g.stroke();
+    g.fillStyle = '#3b82f6'; g.beginPath(); g.moveTo(34, 110); g.lineTo(76, 78); g.lineTo(76, 142); g.closePath(); g.fill();
+    g.fillStyle = '#ffffff'; g.textAlign = 'left'; g.font = 'bold 44px sans-serif';
+    g.fillText('前方路口左转', 170, 128);
+    g.fillStyle = '#cfe3ff'; g.font = 'bold 28px sans-serif';
+    g.fillText('智驾接管中 · 无需操作', 172, 174);
+    /* 底部：彩蛋 */
+    g.fillStyle = 'rgba(255,81,72,.14)'; g.beginPath(); g.roundRect(20, 220, 472, 52, 12); g.fill();
+    g.fillStyle = '#ffb4ae'; g.textAlign = 'center'; g.font = 'bold 27px sans-serif';
+    g.fillText('杆子就在对面', 256, 256);
     scrTex.needsUpdate = true;
   }
   function drawScreenFault(on) {
@@ -832,10 +826,10 @@ function buildCar(paintColor, withInterior) {
     scrTex.needsUpdate = true;
   }
   drawScreenNormal(0);
-  refs.setScreen = m => { screenMode = m; if (m === 'fault') drawScreenFault(true); else drawScreenNormal(0); };
+  refs.setScreen = m => { screenMode = m; scrTickCount = 0; if (m === 'fault') drawScreenFault(true); else drawScreenNormal(0); };
   refs.screenTick = kmh => {
     scrTickCount++;
-    if (screenMode === 'normal') drawScreenNormal(kmh);
+    if (screenMode === 'normal') { if (scrTickCount === 1) drawScreenNormal(kmh); }
     else if (scrTickCount % 4 === 0) { scrBlink = !scrBlink; drawScreenFault(scrBlink); }
   };
   /* 仪表：宽幅液晶条 */
@@ -894,12 +888,15 @@ function buildCar(paintColor, withInterior) {
   const bagSeam = new THREE.Mesh(new THREE.TorusGeometry(.095, .007, 8, 28), std(0x8f9296, .9)); bagSeam.position.z = .1; airbag.add(bagSeam);
   airbag.position.set(-.19, -.245, -.86); airbag.scale.setScalar(.01); airbag.visible = false; cockpit.add(airbag);
   refs.airbag = airbag; refs.wheel = wheel;
+  refs.wheelSet = [wheel, shroud, column, airbag, clusterHousing, clusterMesh, ...cockpit.children.filter(o => o.geometry && o.geometry.type === 'CylinderGeometry' && o !== column)];
+  refs.screenSet = [scrBezel, screenGroup];
+  refs.wheelSet.concat(refs.screenSet).forEach(o => { o.userData.bx = o.position.x; o.userData.by = o.position.y; });
   /* （旧镜头空间顶框/遮阳板/后视镜在顶衬之后不可见，已移除；车顶内饰改放车体空间贴顶衬前沿，见内饰段） */
-  const footLightC = new THREE.PointLight(0xffd9a8, 1.6, 2.0, 1.2); footLightC.position.set(-.12, -.43, -.72); cockpit.add(footLightC);
-  const dashLightC = new THREE.PointLight(0xffe2b8, 1.1, 2.6, 1.2); dashLightC.position.set(0, -.06, -.55); cockpit.add(dashLightC);
+  const footLightC = new THREE.PointLight(0xffd9a8, .55, 2.0, 1.2); footLightC.position.set(-.12, -.43, -.72); cockpit.add(footLightC);
+  const dashLightC = new THREE.PointLight(0x9cc4ff, .5, 2.6, 1.2); dashLightC.position.set(0, -.06, -.55); cockpit.add(dashLightC);
   /* 中控台 + 座椅 */
   const console_ = new THREE.Mesh(new THREE.BoxGeometry(.48, .2, 1.15), trim); console_.position.set(0, .6, .42); car.add(console_);
-  const gearStick = new THREE.Mesh(new THREE.CylinderGeometry(.025, .03, .14, 8), trim2); gearStick.position.set(0, .74, .12); car.add(gearStick);
+  const gearStick = new THREE.Mesh(new THREE.CylinderGeometry(.025, .03, .14, 8), trim2); gearStick.position.set(0, .74, .12); /* 档杆圆柱在车内视角里太突兀，已去掉 */
   [[-.36, .5, .95], [.42, .48, .8]].forEach(([x, bz, kz]) => {
     const base = new THREE.Mesh(new THREE.BoxGeometry(.56, .15, .56), fabric); base.position.set(x, .55, bz); car.add(base);
     const back = new THREE.Mesh(new THREE.BoxGeometry(.56, .78, .15), fabric); back.position.set(x, .96, kz); back.rotation.x = .13; car.add(back);
@@ -912,25 +909,26 @@ function buildCar(paintColor, withInterior) {
   });
   const lgC = document.createElement('canvas'); lgC.width = 512; lgC.height = 384;
   const lgX = lgC.getContext('2d'); const lgG = lgX.createLinearGradient(0, 0, 0, 384);
-  lgG.addColorStop(0, '#7a756a'); lgG.addColorStop(1, '#57534a'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 512, 384);
+  lgG.addColorStop(0, '#34363a'); lgG.addColorStop(1, '#25272b'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 512, 384);
   lgX.fillStyle = 'rgba(255,255,255,.05)';
   for (let i = 0; i < 2400; i++) lgX.fillRect(Math.random() * 512, Math.random() * 384, 1.6, 1.6);
   lgX.fillStyle = 'rgba(0,0,0,.16)';
   for (let i = 0; i < 2400; i++) lgX.fillRect(Math.random() * 512, Math.random() * 384, 1.6, 1.6);
   [308, 71].forEach(y0 => {
     lgX.fillStyle = 'rgba(0,0,0,.35)'; lgX.fillRect(0, y0 - 8, 512, 5);
-    lgX.fillStyle = '#5d594f'; lgX.strokeStyle = 'rgba(0,0,0,.5)';
+    lgX.fillStyle = '#2b2d31'; lgX.strokeStyle = 'rgba(0,0,0,.5)';
     [28, 322].forEach(x => { lgX.fillRect(x, y0, 162, 56); lgX.strokeRect(x, y0, 162, 56); });
-    lgX.fillStyle = '#4e4a41'; lgX.fillRect(196, y0 - 4, 120, 60); lgX.strokeStyle = 'rgba(0,0,0,.5)'; lgX.strokeRect(196, y0 - 4, 120, 60);
-    lgX.fillStyle = '#ffd9a0';
+    lgX.fillStyle = '#222428'; lgX.fillRect(196, y0 - 4, 120, 60); lgX.strokeStyle = 'rgba(0,0,0,.5)'; lgX.strokeRect(196, y0 - 4, 120, 60);
+    lgX.fillStyle = '#7d6a50';
     lgX.beginPath(); lgX.arc(232, y0 + 26, 13, 0, 7); lgX.fill();
     lgX.beginPath(); lgX.arc(280, y0 + 26, 13, 0, 7); lgX.fill();
   });
   const linerSide = new THREE.MeshBasicMaterial({ color: 0x0d0e10 });
   const liner = new THREE.Mesh(new THREE.BoxGeometry(1.44, .05, .85), [linerSide, linerSide, linerSide, new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(lgC), roughness: .95, metalness: 0 }), linerSide, linerSide]); liner.position.set(0, 1.44, .82); car.add(liner);
   /* 车顶内饰（车体空间，全部贴顶衬）：前横梁饰板 + 贴顶遮阳板 + 顶棚灯控制台 + 后视镜贴车顶悬挂 */
-  const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), std(0x55524a, .95));
+  const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), std(0x1c1e22, .95));
   headerPanel.position.set(0, 1.40, .33); car.add(headerPanel);
+  refs.liner = liner; refs.headerPanel = headerPanel; refs.firewall = firewall;
   /* 遮阳板/顶灯画在顶衬纹理里（零遮挡）；中央后视镜已按老板要求删除 */
   /* 踏板总成（镜头空间：悬挂在仪表台下方脚窝区） */
   function pedalAssembly(px, padW, padH) {
@@ -955,8 +953,8 @@ function buildCar(paintColor, withInterior) {
   const crack = new THREE.Mesh(new THREE.PlaneGeometry(1.55, .85), crackMat);
   crack.position.set(-.15, 1.18, -.93); crack.rotation.x = -.5; car.add(crack);
   refs.crackMat = crackMat;
-  const cabinLight = new THREE.PointLight(0xffd9a8, 3.2, 5, 1.2); cabinLight.position.set(0, 1.12, -.25); car.add(cabinLight);
-  const footLight = new THREE.PointLight(0xffd9a8, 3.4, 2.2, 1.2); footLight.position.set(-.4, 1.0, -.65); car.add(footLight);
+  const cabinLight = new THREE.PointLight(0xffd9a8, .9, 5, 1.2); cabinLight.position.set(0, 1.12, -.25); car.add(cabinLight);
+  const footLight = new THREE.PointLight(0xffd9a8, 1.0, 2.2, 1.2); footLight.position.set(-.4, 1.0, -.65); car.add(footLight);
   return refs;
 }
 const CAR = buildCar(0x0b0b0d, true);
@@ -964,7 +962,19 @@ scene.add(CAR.group);
 scene.add(camera);
 CAR.cockpit.position.y = -.06;
 camera.add(CAR.cockpit);
-const camLight = new THREE.PointLight(0xffe2b8, .75, 3.5, 1.2); camLight.position.set(0, .15, .1); camera.add(camLight);
+/* 车内视角自适应：竖屏时座舱下移、顶棚后退，让挡风玻璃占画面更大比例 */
+function cockpitLayout() {
+  const a = innerWidth / innerHeight, p = a < .8 ? 1 : a < 1.2 ? .5 : 0;
+  CAR.cockpit.position.y = -.06 - .27 * p;
+  CAR.wheelSet.forEach(o => { o.position.x = o.userData.bx + .08 * p; });
+  CAR.wheel.scale.setScalar(1 - .14 * p);
+  CAR.screenSet.forEach(o => { o.position.x = o.userData.bx - .01 * p; o.position.y = o.userData.by + .06 * p; o.scale.setScalar(1 - .1 * p); });
+  CAR.liner.position.z = .97 + .15 * p;
+  CAR.headerPanel.position.z = .48 + .15 * p;
+}
+cockpitLayout();
+addEventListener('resize', cockpitLayout);
+const camLight = new THREE.PointLight(0xffe2b8, .28, 3.5, 1.2); camLight.position.set(0, .15, .1); camera.add(camLight);
 /* 车头灯光 */
 const headlight = new THREE.SpotLight(0xfff0c8, 170, 130, .5, .55, 1.1);
 scene.add(headlight); scene.add(headlight.target);
@@ -1637,6 +1647,7 @@ try { if (localStorage.getItem('zhijia-view') === 'inside') VIEW = 'inside'; } c
 function syncViewBtns() {
   $('viewBtn').textContent = VIEW === 'outside' ? '🚗 视角：车外' : '🕹️ 视角：车内';
   $('viewBtnHud').textContent = VIEW === 'outside' ? '🚗 车外' : '🕹️ 车内';
+  document.body.classList.toggle('view-inside', VIEW === 'inside');
 }
 function flipView() { VIEW = VIEW === 'outside' ? 'inside' : 'outside'; try { localStorage.setItem('zhijia-view', VIEW); } catch (e) {} syncViewBtns(); }
 $('viewBtn').addEventListener('click', flipView);
