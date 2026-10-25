@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v46 -->
+<!-- zhijia v47 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -131,6 +131,14 @@
   #fireEndStats b { display:block; font-size:20px; color:#fff; font-variant-numeric:tabular-nums; }
   #btnFailVideo { background:none; border:none; color:#ffb27a; font-size:14px; margin-top:10px; text-decoration:underline; cursor:pointer; }
   #failVideo.hide { display:none; }
+  #surviveOverlay { background:linear-gradient(180deg, transparent 0%, transparent 40%, rgba(4,8,16,.7) 60%, rgba(4,8,16,.95) 100%); backdrop-filter:none; align-items:flex-end; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px); animation:fireIn .8s ease-out; }
+  #surviveOverlay .card { background:rgba(10,15,26,.82); max-height:50vh; }
+  #surviveVideo.hide { display:none; }
+  #btnSvVideo { background:none; border:none; color:#9cc4ff; font-size:14px; margin-top:8px; text-decoration:underline; cursor:pointer; display:block; margin-left:auto; margin-right:auto; }
+  @media (orientation:landscape) {
+    #surviveOverlay { background:linear-gradient(90deg, transparent 0%, transparent 42%, rgba(4,8,16,.72) 62%, rgba(4,8,16,.95) 100%); justify-content:flex-end; align-items:center; padding-right:3vw; padding-bottom:0; }
+    #surviveOverlay .card { width:min(42vw,440px); max-height:90vh; }
+  }
   @media (orientation:landscape) {
     #fireEndOverlay { background:linear-gradient(90deg, transparent 0%, transparent 42%, rgba(18,4,0,.75) 62%, rgba(8,2,0,.94) 100%); justify-content:flex-end; align-items:center; padding-right:4vw; }
     #fireEndOverlay .endcard { width:min(42vw,430px); }
@@ -293,7 +301,8 @@
       </div>
       <div id="svHint"></div>
     </div>
-    <video id="surviveVideo" src="survive.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
+    <button id="btnSvVideo">📺 看逃生回放</button>
+    <video class="hide" id="surviveVideo" src="survive.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
     <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
     <button class="big-btn" id="btnRetrySurvive">再来一局</button>
     <button class="menu-btn" id="btnMenuSurvive">🏠 返回主界面</button>
@@ -1448,6 +1457,47 @@ for (let i = 0; i < 16; i++) {
   smokeGroup.add(s); smokeSprites.push(s);
 }
 let burnT = 0, charMats = null;
+/* 幸存者：坐在马路牙子上打电话 */
+const survivor = (() => {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const jacket = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: .85 });
+  const pants = new THREE.MeshStandardMaterial({ color: 0x1b1d23, roughness: .9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xc69676, roughness: .7 });
+  const hair = new THREE.MeshStandardMaterial({ color: 0x15110e, roughness: .9 });
+  const shoe = new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: .6 });
+  const limb = (a, b, r, m) => {
+    a = new THREE.Vector3(...a); b = new THREE.Vector3(...b);
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, a.distanceTo(b), 4, 8), m);
+    mesh.position.copy(a).add(b).multiplyScalar(.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    g.add(mesh); return mesh;
+  };
+  /* 坐在路沿上（路沿顶 y=.15，人面朝 +z 马路） */
+  const hipY = .27;
+  limb([-.1, hipY, -.05], [-.13, hipY + .02, .38], .075, pants);   // 左大腿
+  limb([.1, hipY, -.05], [.16, hipY + .02, .36], .075, pants);     // 右大腿
+  limb([-.13, hipY + .02, .38], [-.14, .06, .5], .06, pants);       // 左小腿
+  limb([.16, hipY + .02, .36], [.2, .06, .46], .06, pants);         // 右小腿
+  [[-.14, .5], [.2, .46]].forEach(([x, z]) => { const f = new THREE.Mesh(new THREE.BoxGeometry(.1, .07, .24), shoe); f.position.set(x, .035, z + .06); g.add(f); });
+  const torso = limb([0, hipY + .05, -.06], [0, .78, .04], .17, jacket); torso.scale.set(1.15, 1, .8); // 身体前倾
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.105, 16, 12), skin); head.position.set(-.01, .99, .1); head.rotation.z = .25; g.add(head);
+  const hairM = new THREE.Mesh(new THREE.SphereGeometry(.11, 16, 12, 0, Math.PI * 2, 0, Math.PI * .55), hair); hairM.position.copy(head.position).add(new THREE.Vector3(0, .015, -.01)); g.add(hairM);
+  limb([0, .88, .05], [-.01, .93, .09], .045, skin); // 脖子
+  // 左手搭在膝盖上
+  limb([-.2, .8, .03], [-.24, .5, .18], .05, jacket);
+  limb([-.24, .5, .18], [-.15, .35, .36], .045, jacket);
+  const lh = new THREE.Mesh(new THREE.SphereGeometry(.045, 10, 8), skin); lh.position.set(-.14, .33, .4); g.add(lh);
+  // 右手举手机贴耳边
+  limb([.2, .8, .03], [.25, .55, .12], .05, jacket);
+  limb([.25, .55, .12], [.13, .93, .14], .045, jacket);
+  const rh = new THREE.Mesh(new THREE.SphereGeometry(.045, 10, 8), skin); rh.position.set(.12, .96, .14); g.add(rh);
+  const phone = new THREE.Mesh(new THREE.BoxGeometry(.018, .15, .075), new THREE.MeshStandardMaterial({ color: 0x111, emissive: 0x6fa8ff, emissiveIntensity: .9 }));
+  phone.position.set(.1, .99, .12); phone.rotation.z = .25; g.add(phone);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x8ab8ff, transparent: true, opacity: .55, depthWrite: false, blending: THREE.AdditiveBlending }));
+  glow.scale.setScalar(.35); glow.position.copy(phone.position); g.add(glow);
+  g.userData.glow = glow;
+  return g;
+})();
 function setChar(k) {
   if (!charMats) {
     const set = new Set(); CAR.exterior.forEach(m => { (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => { if (x && x.color) set.add(x); }); });
@@ -1466,7 +1516,7 @@ function setFlames(on) {
     fireLight.position.copy(new THREE.Vector3(0, 1.6, -.6).applyMatrix4(CAR.group.matrixWorld));
     fireLight.distance = 22;
   }
-  if (!on) { $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
+  if (!on) { survivor.visible = false; G.survivorCam = false; $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
 }
 /* ================= 游戏逻辑 ================= */
 const CRUISE_V = 18.3, RUN_ACCEL = 6.0, TRIGGER_DIST = 200;
@@ -1599,17 +1649,28 @@ function newsEnding() {
   reportRun('news');
 }
 function survive() {
-  G.phase = 'done';
-  particleMode = 'smoke';
+  G.phase = 'escaped'; burnTimer = 3.2;
+  particleMode = 'fire';
+  setFlames(true); burnT = .9;
+  $('fireOverlay').style.opacity = .2;
   $('seqBox').style.display = 'none';
+  $('controls').style.display = 'none'; $('distBox').style.display = 'none'; $('speedBox').style.visibility = 'hidden';
+  /* 人坐在车旁的马路牙子上（远侧人行道路沿 z≈-311.5），离车 ~5m */
+  survivor.position.set(G.px + 3.9, .15, -311.62);
+  $('banner').className = ''; $('banner').textContent = '✅ 已逃出车外 · 正在拨打紧急电话';
+  survivor.rotation.y = .55;
+  survivor.visible = true; G.survivorCam = true;
+  $('surviveVideo').classList.add('hide'); $('btnSvVideo').style.display = '';
   G.escapeTime = Math.round(Math.max(0, Math.min(3, 3 - G.seqT)) * 1000) / 1000;
   AU.setEngine(0, false); playSfx(SFX.success);
   $('surviveStats').innerHTML =
     `撞击速度 <b style="float:right;color:#ffd166">${Math.round(impactSpeed * KMH)} km/h</b><br>` +
     `接管反应 <b style="float:right;color:#ffd166">${G.reaction === null ? '—' : G.reaction.toFixed(2) + ' 秒'}</b><br>` +
     `逃生顺序 <b style="float:right;color:#ffd166">3 秒内全对 ✔</b>`;
+}
+function showSurviveCard() {
+  G.phase = 'done';
   $('surviveOverlay').classList.remove('hidden');
-  const sv = $('surviveVideo'); if (sv) sv.play().catch(() => {});
   setupSvScoreBox();
   reportRun('survive');
 }
@@ -1897,6 +1958,7 @@ function backToMenu() {
   AU.setEngine(0, false); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
   $('startOverlay').classList.remove('hidden');
 }
+$('btnSvVideo').addEventListener('click', () => { const v = $('surviveVideo'); v.classList.remove('hide'); $('btnSvVideo').style.display = 'none'; v.play().catch(() => {}); });
 $('btnFailVideo').addEventListener('click', () => { const v = $('failVideo'); v.classList.remove('hide'); $('btnFailVideo').style.display = 'none'; v.play().catch(() => {}); });
 ['btnMenuResult', 'btnMenuFire', 'btnMenuNews', 'btnMenuSurvive'].forEach(id => $(id).addEventListener('click', backToMenu));
 $('btnNameOk').addEventListener('click', async () => {
@@ -1978,6 +2040,9 @@ function step(dt, t) {
     G.seqT -= dt;
     $('countBar').style.width = Math.max(0, G.seqT / 3 * 100) + '%';
     if (G.seqT <= 0) fireGameOver('3 秒过去了，你没能完成逃生。');
+  } else if (ph === 'escaped') {
+    burnTimer -= dt;
+    if (burnTimer <= 0) showSurviveCard();
   } else if (ph === 'burned') {
     burnTimer -= dt;
     if (burnTimer <= 0) {
@@ -2053,11 +2118,22 @@ function step(dt, t) {
   /* ---- 相机 ---- */
   G.shake *= Math.max(0, 1 - 2.6 * dt);
   CAR.cockpit.visible = ph !== 'menu' && VIEW === 'inside' && !G.burning;
+  if (G.survivorCam && camera.fov !== 50) { camera.fov = 50; camera.updateProjectionMatrix(); }
   const extVis = VIEW !== 'inside' || ph === 'menu' || G.burning;
   if (CAR._extVis !== extVis) { CAR._extVis = extVis; CAR.exterior.forEach(m => m.visible = extVis); }
   if (ph === 'menu') {
     camera.position.set(G.px + Math.sin(t * .28) * 4.7, 1.55 + Math.sin(t * .17) * .25, G.pz + Math.cos(t * .28) * 4.7);
     camera.lookAt(G.px, .72, G.pz - .4);
+  } else if (G.survivorCam) {
+    /* 逃生成功：人坐在路沿打电话，身后整车在烧 */
+    const portrait = innerWidth / innerHeight < .8;
+    const sp = survivor.position, k = Math.min(burnT, 6);
+    /* 镜头在人的右前方，沿路沿看过去：人在前景，燃烧的车在身后 */
+    const cx = sp.x + (portrait ? 6.8 : 5.6) - k * .1, cz = sp.z + (portrait ? 5.2 : 4.4) - k * .08;
+    camera.position.set(cx, (portrait ? 2.0 : 1.5) + Math.sin(t * .6) * .02, cz);
+    camera.lookAt(sp.x - 3.2, portrait ? -1.6 : .2, sp.z - 1.6);
+    if (!portrait) camera.rotateY(-.28);
+    survivor.userData.glow.material.opacity = .4 + Math.sin(t * 3) * .12;
   } else if (G.burning) {
     /* 起火结算：车外慢速环绕，看着整车被火吞没 */
     const portrait = innerWidth / innerHeight < .8;
