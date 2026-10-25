@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v45 -->
+<!-- zhijia v46 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -123,6 +123,20 @@
   .endcard .big { font-size:34px; font-weight:900; text-shadow:0 3px 18px rgba(0,0,0,.9); }
   .endcard .mid { margin-top:14px; font-size:16px; line-height:1.8; text-shadow:0 2px 10px rgba(0,0,0,.9); }
   .endcard .big-btn { max-width:320px; margin-left:auto; margin-right:auto; }
+  #fireEndOverlay { background:linear-gradient(180deg, transparent 0%, transparent 38%, rgba(18,4,0,.72) 62%, rgba(8,2,0,.94) 100%); backdrop-filter:none; align-items:flex-end; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 22px); animation:fireIn .8s ease-out; }
+  @keyframes fireIn { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
+  #fireEndOverlay .big { color:#ff9a3c; letter-spacing:2px; text-shadow:0 0 22px rgba(255,90,0,.55), 0 3px 18px rgba(0,0,0,.9); }
+  #fireEndStats { display:flex; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  #fireEndStats div { background:rgba(40,10,0,.6); border:1px solid rgba(255,120,40,.35); border-radius:10px; padding:6px 12px; font-size:13px; color:#ffcfa8; }
+  #fireEndStats b { display:block; font-size:20px; color:#fff; font-variant-numeric:tabular-nums; }
+  #btnFailVideo { background:none; border:none; color:#ffb27a; font-size:14px; margin-top:10px; text-decoration:underline; cursor:pointer; }
+  #failVideo.hide { display:none; }
+  @media (orientation:landscape) {
+    #fireEndOverlay { background:linear-gradient(90deg, transparent 0%, transparent 42%, rgba(18,4,0,.75) 62%, rgba(8,2,0,.94) 100%); justify-content:flex-end; align-items:center; padding-right:4vw; }
+    #fireEndOverlay .endcard { width:min(42vw,430px); }
+    #fireEndOverlay .big { font-size:28px; }
+    #fireEndOverlay .mid { font-size:14px; margin-top:8px; }
+  }
   .score-box { margin-top:12px; }
   .score-box input { flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.35); background:rgba(10,14,24,.85); color:#fff; font-size:15px; }
   #btnSubmitScore, #btnSubmitSv { padding:10px 16px; border:none; border-radius:10px; background:linear-gradient(180deg,#ffd166,#f5a623); color:#231600; font-weight:800; font-size:15px; cursor:pointer; white-space:nowrap; }
@@ -256,9 +270,11 @@
 
 <div class="overlay clear hidden" id="fireEndOverlay">
   <div class="endcard">
-    <div class="big">🔥 游戏结束</div>
+    <div class="big">🔥 逃生失败</div>
     <p class="mid" id="fireEndText">车辆起火自燃，你失去了任何挽回生命的手段。</p>
-    <video id="failVideo" src="fail.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
+    <div id="fireEndStats"></div>
+    <button id="btnFailVideo">📺 看事故回放</button>
+    <video class="hide" id="failVideo" src="fail.mp4" playsinline webkit-playsinline muted loop controls preload="metadata"></video>
     <button class="big-btn" id="btnRetryFire">再来一局</button>
     <button class="menu-btn" id="btnMenuFire">🏠 返回主界面</button>
   </div>
@@ -1410,23 +1426,47 @@ function updateParticles(dt, ex, ey, ez) {
 const flameTex = glowTexture('rgba(255,190,60,1)', 'rgba(255,80,0,0)');
 const flameGroup = new THREE.Group(); flameGroup.visible = false; scene.add(flameGroup);
 const flameSprites = [];
-for (let i = 0; i < 9; i++) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, transparent: true, opacity: .85, depthWrite: false, blending: THREE.AdditiveBlending }));
+const FLAME_N = 52;
+const flameTex2 = glowTexture('rgba(255,140,30,1)', 'rgba(190,30,0,0)');
+for (let i = 0; i < FLAME_N; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: i % 3 ? flameTex2 : flameTex, transparent: true, opacity: .46, depthWrite: false, blending: THREE.AdditiveBlending }));
   s.userData.seed = Math.random() * 10;
+  /* 车体局部坐标：从车头(-z)往车尾蔓延 */
+  const f = i / (FLAME_N - 1);
+  s.userData.loc = new THREE.Vector3((Math.random() - .5) * 2.1, .35 + Math.random() * 1.5, -2.75 + f * 5.3 + (Math.random() - .5) * .5);
+  s.userData.delay = f * 1.9 + Math.random() * .25;
+  s.userData.base = 1.7 + Math.random() * 1.7;
   flameGroup.add(s); flameSprites.push(s);
+}
+/* 浓烟 */
+const smokeTex = glowTexture('rgba(28,24,22,0.9)', 'rgba(28,24,22,0)');
+const smokeGroup = new THREE.Group(); smokeGroup.visible = false; scene.add(smokeGroup);
+const smokeSprites = [];
+for (let i = 0; i < 16; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: .5, depthWrite: false }));
+  s.userData.ph = i / 16; s.userData.dx = (Math.random() - .5) * 2.2; s.userData.dz = (Math.random() - .5) * 3.5;
+  smokeGroup.add(s); smokeSprites.push(s);
+}
+let burnT = 0, charMats = null;
+function setChar(k) {
+  if (!charMats) {
+    const set = new Set(); CAR.exterior.forEach(m => { (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => { if (x && x.color) set.add(x); }); });
+    charMats = [...set].map(m => ({ m, c: m.color.clone() }));
+  }
+  const black = new THREE.Color(0x0d0907);
+  charMats.forEach(o => o.m.color.copy(o.c).lerp(black, k));
 }
 const fireLight = new THREE.PointLight(0xff7722, 0, 13, 1.6); scene.add(fireLight);
 function setFlames(on) {
-  flameGroup.visible = on;
+  flameGroup.visible = on; smokeGroup.visible = on; G.burning = on;
   if (on) {
-    const px = G.px || 0, pz = G.pz || 0, hx = G.hx || 0, hz = G.hz || -1;
-    flameSprites.forEach((s, i) => {
-      const lat = (i % 3 - 1) * .55 + (Math.random() - .5) * .3;
-      s.position.set(px + hx * 2.78 + (-hz) * lat, .55 + Math.random() * .3, pz + hz * 2.78 + hx * lat - Math.random() * .2);
-    });
-    fireLight.position.set(px + hx * 3.25, 1, pz + hz * 3.25);
+    burnT = 0;
+    CAR.group.updateMatrixWorld(true);
+    flameSprites.forEach(s => { s.position.copy(s.userData.loc).applyMatrix4(CAR.group.matrixWorld); s.scale.setScalar(.01); });
+    fireLight.position.copy(new THREE.Vector3(0, 1.6, -.6).applyMatrix4(CAR.group.matrixWorld));
+    fireLight.distance = 22;
   }
-  if (!on) fireLight.intensity = 0;
+  if (!on) { $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
 }
 /* ================= 游戏逻辑 ================= */
 const CRUISE_V = 18.3, RUN_ACCEL = 6.0, TRIGGER_DIST = 200;
@@ -1535,7 +1575,11 @@ function seqPress(key, btn) {
   }
 }
 function fireGameOver(reason) {
-  G.phase = 'burned'; burnTimer = 1.1;
+  G.phase = 'burned'; burnTimer = 3.4;
+  $('controls').style.display = 'none'; $('distBox').style.display = 'none'; $('speedBox').style.visibility = 'hidden';
+  const done = Math.min(seqStep, 3);
+  $('fireEndStats').innerHTML = '<div><b>' + Math.round(impactSpeed * KMH) + '</b>撞击时速 km/h</div><div><b>' + done + ' / 3</b>完成逃生步骤</div>';
+  $('failVideo').classList.add('hide'); $('btnFailVideo').style.display = '';
   particleMode = 'fire';
   setFlames(true);
   $('fireOverlay').style.opacity = .3;
@@ -1853,6 +1897,7 @@ function backToMenu() {
   AU.setEngine(0, false); AU.alarm(false); AU.setScream(0, false); AU.setScreech(false);
   $('startOverlay').classList.remove('hidden');
 }
+$('btnFailVideo').addEventListener('click', () => { const v = $('failVideo'); v.classList.remove('hide'); $('btnFailVideo').style.display = 'none'; v.play().catch(() => {}); });
 ['btnMenuResult', 'btnMenuFire', 'btnMenuNews', 'btnMenuSurvive'].forEach(id => $(id).addEventListener('click', backToMenu));
 $('btnNameOk').addEventListener('click', async () => {
   const nm = ($('menuNickname').value || '').trim();
@@ -1938,7 +1983,6 @@ function step(dt, t) {
     if (burnTimer <= 0) {
       G.phase = 'done';
       $('fireEndOverlay').classList.remove('hidden');
-      const fv = $('failVideo'); if (fv) fv.play().catch(() => {});
       reportRun('burned');
     }
   }
@@ -1981,22 +2025,45 @@ function step(dt, t) {
     CAR.hoodPivot.rotation.x = airbagOut * .55;
   }
   if (flameGroup.visible) {
+    burnT += dt;
+    let lit = 0;
     flameSprites.forEach((s, i) => {
-      const sc = 1 + Math.sin(t * 34 + s.userData.seed * 7) * .35 + Math.random() * .15;
-      s.scale.set(sc, sc * 1.35, 1);
+      const grow = clamp((burnT - s.userData.delay) / .7, 0, 1);
+      if (grow > 0) lit++;
+      const fl = 1 + Math.sin(t * 23 + s.userData.seed * 7) * .22 + Math.random() * .12;
+      const sc = Math.max(.01, s.userData.base * grow * fl);
+      s.scale.set(sc, sc * 1.7, 1);
     });
-    fireLight.intensity = 22 + Math.sin(t * 41) * 7 + Math.random() * 6;
+    const spread = lit / flameSprites.length;
+    fireLight.intensity = (18 + spread * 30) + Math.sin(t * 41) * 7 + Math.random() * 6;
+    setChar(clamp(burnT / 3, 0, .92));
+    CAR.group.updateMatrixWorld(true);
+    smokeSprites.forEach(s => {
+      const k = (s.userData.ph + t * .16) % 1;
+      const p = new THREE.Vector3(s.userData.dx * (1 + k), 2.2 + k * 9, s.userData.dz).applyMatrix4(CAR.group.matrixWorld);
+      s.position.copy(p);
+      const sc = (2 + k * 7) * clamp(burnT / 1.5, 0, 1);
+      s.scale.set(sc, sc, 1);
+      s.material.opacity = .55 * (1 - k) * clamp(burnT / 1.5, 0, 1);
+    });
+    $('fireOverlay').style.opacity = Math.min(.55, .2 + spread * .4);
   }
   updateParticles(dt, G.px + G.hx * 2.85, .8, G.pz + G.hz * 2.85);
 
   /* ---- 相机 ---- */
   G.shake *= Math.max(0, 1 - 2.6 * dt);
-  CAR.cockpit.visible = ph !== 'menu' && VIEW === 'inside';
-  const extVis = VIEW !== 'inside' || ph === 'menu';
+  CAR.cockpit.visible = ph !== 'menu' && VIEW === 'inside' && !G.burning;
+  const extVis = VIEW !== 'inside' || ph === 'menu' || G.burning;
   if (CAR._extVis !== extVis) { CAR._extVis = extVis; CAR.exterior.forEach(m => m.visible = extVis); }
   if (ph === 'menu') {
     camera.position.set(G.px + Math.sin(t * .28) * 4.7, 1.55 + Math.sin(t * .17) * .25, G.pz + Math.cos(t * .28) * 4.7);
     camera.lookAt(G.px, .72, G.pz - .4);
+  } else if (G.burning) {
+    /* 起火结算：车外慢速环绕，看着整车被火吞没 */
+    const portrait = innerWidth / innerHeight < .8;
+    const ang = 1.15 + burnT * .08, R = (portrait ? 14 : 10.5) - Math.min(burnT, 4) * .4;
+    camera.position.set(...off(Math.sin(ang) * R, 2.6 + Math.min(burnT, 4) * .25 + (Math.random() - .5) * G.shake * .2, Math.cos(ang) * R - .6));
+    camera.lookAt(...off(0, portrait ? 1.0 : 1.3, -.4)); if (!portrait) camera.rotateY(-.32);
   } else if (VIEW === 'outside') {
     const drunkO = ph === 'cruise' ? 1 : .5;
     const oR = 8.8;
