@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v44 -->
+<!-- zhijia v45 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -762,13 +762,13 @@ function buildCar(paintColor, withInterior) {
   });
   /* ---- A 柱 + 挡风下沿（镜头空间，竖屏时自然出画） ---- */
   const pillarMat = std(0x111317, .9);
-  [[-1.12, .06, -1.38, -.66, 1.0, -.5], [1.42, .06, -1.38, 1.0, 1.0, -.5]].forEach(([x0, y0, z0, x1, y1, z1]) => {
+  const pillars = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.BoxGeometry(.13, 1, .09), pillarMat); cockpit.add(m); return m; });
+  refs.placePillars = (pts) => pillars.forEach((m, i) => {
+    const [x0, y0, z0, x1, y1, z1] = pts[i];
     const a = new THREE.Vector3(x0, y0, z0), b = new THREE.Vector3(x1, y1, z1);
-    const len = a.distanceTo(b);
-    const p = new THREE.Mesh(new THREE.BoxGeometry(.13, len, .09), pillarMat);
-    p.position.copy(a).add(b).multiplyScalar(.5);
-    p.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-    cockpit.add(p);
+    m.scale.set(1, a.distanceTo(b), 1);
+    m.position.copy(a).add(b).multiplyScalar(.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
   });
   const cowl = new THREE.Mesh(new THREE.BoxGeometry(3.3, .025, .1), std(0x0b0c0f, .95));
   cowl.position.set(0, .11, -1.44); cockpit.add(cowl);
@@ -909,24 +909,24 @@ function buildCar(paintColor, withInterior) {
   });
   const lgC = document.createElement('canvas'); lgC.width = 512; lgC.height = 384;
   const lgX = lgC.getContext('2d'); const lgG = lgX.createLinearGradient(0, 0, 0, 384);
-  lgG.addColorStop(0, '#34363a'); lgG.addColorStop(1, '#25272b'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 512, 384);
+  lgG.addColorStop(0, '#7a756a'); lgG.addColorStop(1, '#57534a'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 512, 384);
   lgX.fillStyle = 'rgba(255,255,255,.05)';
   for (let i = 0; i < 2400; i++) lgX.fillRect(Math.random() * 512, Math.random() * 384, 1.6, 1.6);
   lgX.fillStyle = 'rgba(0,0,0,.16)';
   for (let i = 0; i < 2400; i++) lgX.fillRect(Math.random() * 512, Math.random() * 384, 1.6, 1.6);
   [308, 71].forEach(y0 => {
     lgX.fillStyle = 'rgba(0,0,0,.35)'; lgX.fillRect(0, y0 - 8, 512, 5);
-    lgX.fillStyle = '#2b2d31'; lgX.strokeStyle = 'rgba(0,0,0,.5)';
+    lgX.fillStyle = '#5d594f'; lgX.strokeStyle = 'rgba(0,0,0,.5)';
     [28, 322].forEach(x => { lgX.fillRect(x, y0, 162, 56); lgX.strokeRect(x, y0, 162, 56); });
-    lgX.fillStyle = '#222428'; lgX.fillRect(196, y0 - 4, 120, 60); lgX.strokeStyle = 'rgba(0,0,0,.5)'; lgX.strokeRect(196, y0 - 4, 120, 60);
-    lgX.fillStyle = '#7d6a50';
+    lgX.fillStyle = '#4e4a41'; lgX.fillRect(196, y0 - 4, 120, 60); lgX.strokeStyle = 'rgba(0,0,0,.5)'; lgX.strokeRect(196, y0 - 4, 120, 60);
+    lgX.fillStyle = '#ffd9a0';
     lgX.beginPath(); lgX.arc(232, y0 + 26, 13, 0, 7); lgX.fill();
     lgX.beginPath(); lgX.arc(280, y0 + 26, 13, 0, 7); lgX.fill();
   });
   const linerSide = new THREE.MeshBasicMaterial({ color: 0x0d0e10 });
   const liner = new THREE.Mesh(new THREE.BoxGeometry(1.44, .05, .85), [linerSide, linerSide, linerSide, new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(lgC), roughness: .95, metalness: 0 }), linerSide, linerSide]); liner.position.set(0, 1.44, .82); car.add(liner);
   /* 车顶内饰（车体空间，全部贴顶衬）：前横梁饰板 + 贴顶遮阳板 + 顶棚灯控制台 + 后视镜贴车顶悬挂 */
-  const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), std(0x1c1e22, .95));
+  const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), std(0x55524a, .95));
   headerPanel.position.set(0, 1.40, .33); car.add(headerPanel);
   refs.liner = liner; refs.headerPanel = headerPanel; refs.firewall = firewall;
   /* 遮阳板/顶灯画在顶衬纹理里（零遮挡）；中央后视镜已按老板要求删除 */
@@ -966,11 +966,17 @@ camera.add(CAR.cockpit);
 function cockpitLayout() {
   const a = innerWidth / innerHeight, p = a < .8 ? 1 : a < 1.2 ? .5 : 0;
   CAR.cockpit.position.y = -.06 - .27 * p;
+  CAR.pitchAdj = 0;
   CAR.wheelSet.forEach(o => { o.position.x = o.userData.bx + .08 * p; });
   CAR.wheel.scale.setScalar(1 - .14 * p);
   CAR.screenSet.forEach(o => { o.position.x = o.userData.bx - .01 * p; o.position.y = o.userData.by + .06 * p; o.scale.setScalar(1 - .1 * p); });
-  CAR.liner.position.z = .97 + .15 * p;
-  CAR.headerPanel.position.z = .48 + .15 * p;
+  CAR.liner.position.z = .82;
+  /* A 柱：横屏放在真实位置；竖屏收进画面两侧，框住挡风玻璃 */
+  const L = [-1.12, .06, -1.38, -.66, 1.0, -.5], R = [1.42, .06, -1.38, 1.0, 1.0, -.5];
+  const Lp = [-.52, .2, -1.3, -.4, .95, -1.0], Rp = [.52, .2, -1.3, .4, .95, -1.0];
+  const mix = (A, B) => A.map((v, i) => v + (B[i] - v) * p);
+  CAR.placePillars([mix(L, Lp), mix(R, Rp)]);
+  CAR.headerPanel.position.z = .33;
 }
 cockpitLayout();
 addEventListener('resize', cockpitLayout);
@@ -2010,7 +2016,7 @@ function step(dt, t) {
       ioff[0] + swayX + (Math.random() - .5) * G.shake * .16,
       ioff[1] + Math.sin(t * 1.7) * .008 * drunk + (Math.random() - .5) * G.shake * .12,
       ioff[2]);
-    camera.rotation.set(pitch + (Math.random() - .5) * G.shake * .05, pose.th, swayR + (Math.random() - .5) * G.shake * .05);
+    camera.rotation.set(pitch + (CAR.pitchAdj || 0) + (Math.random() - .5) * G.shake * .05, pose.th, swayR + (Math.random() - .5) * G.shake * .05);
   }
 
   /* ---- 踏板动画 ---- */
