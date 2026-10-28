@@ -458,7 +458,7 @@ function remain() { return Math.max(0, PATH_LEN - (G.s || 0)); }
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a14);
 scene.fog = new THREE.Fog(0x060a14, 30, 210);
-function fovFor() { const a = innerWidth / innerHeight; return a < .8 ? 82 : a < 1.2 ? 78 : 74; }
+function fovFor() { const a = innerWidth / innerHeight; return a < .8 ? 68 : a < 1.2 ? 74 : 74; }
 const camera = new THREE.PerspectiveCamera(fovFor(), innerWidth / innerHeight, .05, 700);
 camera.rotation.order = 'YXZ';
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -1003,6 +1003,7 @@ function buildCar(paintColor, withInterior) {
   const CL_W = .46, CL_H = CL_W * (128 / 512), CL_M = .014;
   const clusterGroup = new THREE.Group();
   clusterGroup.position.set(-.2, -.036, -1.23); clusterGroup.rotation.x = -.1; cockpit.add(clusterGroup);
+  refs.clusterGroup = clusterGroup;
   const clusterLip = new THREE.Mesh(roundedBoxGeo(CL_W + CL_M * 2 + .012, CL_H + CL_M * 2 + .012, .01, .028), brightTrim);
   clusterLip.position.z = -.018; clusterGroup.add(clusterLip);
   const clusterHousing = new THREE.Mesh(roundedBoxGeo(CL_W + CL_M * 2, CL_H + CL_M * 2, .02, .024), bezelM);
@@ -1221,7 +1222,7 @@ function buildCar(paintColor, withInterior) {
     bezel.rotation.x = Math.PI / 2; bezel.position.set(x, -.02, 0); headerPanel.add(bezel);
   });
   car.add(headerPanel);
-  refs.liner = liner; refs.headerPanel = headerPanel; refs.firewall = firewall;
+  refs.liner = liner; refs.linerRoll = linerRoll; refs.headerPanel = headerPanel; refs.firewall = firewall;
   const seatFill = new THREE.PointLight(0xffe2c4, .35, 2.2, 1.4);
   seatFill.position.set(0, 1.05, .25); car.add(seatFill);
   /* 踏板总成（镜头空间：驾驶员脚窝，仪表台左下方，不藏在膝部饰板后面） */
@@ -1258,22 +1259,24 @@ scene.add(CAR.group);
 scene.add(camera);
 CAR.cockpit.position.set(0, -.06, .1);
 camera.add(CAR.cockpit);
-/* 车内视角自适应：竖屏时座舱下移、顶棚后退，让挡风玻璃占画面更大比例 */
+/* 车内视角：竖屏不再把整舱按进下半屏。只略收屏幕、顶棚稍退，驾驶视线仍在仪表高度 */
 function cockpitLayout() {
   const a = innerWidth / innerHeight, p = a < .8 ? 1 : a < 1.2 ? .5 : 0;
-  CAR.cockpit.position.y = -.06 - .27 * p;
-  CAR.cockpit.position.z = .1;
-  CAR.pitchAdj = 0;
-  CAR.wheelSet.forEach(o => { o.position.x = o.userData.bx + .08 * p; });
-  CAR.wheel.scale.setScalar(1 - .14 * p);
-  CAR.screenSet.forEach(o => { o.position.x = o.userData.bx - .06 * p; o.position.y = o.userData.by + .06 * p; o.scale.setScalar(1 - .22 * p); });
-  CAR.liner.position.z = .82;
+  CAR.cockpit.position.y = -.04 - .02 * p;
+  CAR.cockpit.position.z = .06 - .04 * p;
+  CAR.pitchAdj = .045 * p;
+  CAR.wheelSet.forEach(o => { o.position.x = o.userData.bx + .02 * p; });
+  CAR.wheel.scale.setScalar(1 - .1 * p);
+  CAR.clusterGroup.scale.setScalar(1 - .16 * p);
+  CAR.screenSet.forEach(o => { o.position.x = o.userData.bx - .11 * p; o.position.y = o.userData.by + .02 * p; o.scale.setScalar(1 - .34 * p); });
+  CAR.liner.position.z = .82 + .55 * p;
+  CAR.linerRoll.position.z = .62 * p;
   /* A 柱：横屏放在真实位置；竖屏收进画面两侧，框住挡风玻璃 */
   const L = [-1.12, .06, -1.38, -.66, 1.0, -.5], R = [1.42, .06, -1.38, 1.0, 1.0, -.5];
   const Lp = [-.52, .2, -1.3, -.4, .95, -1.0], Rp = [.52, .2, -1.3, .4, .95, -1.0];
   const mix = (A, B) => A.map((v, i) => v + (B[i] - v) * p);
   CAR.placePillars([mix(L, Lp), mix(R, Rp)]);
-  CAR.headerPanel.position.z = .33;
+  CAR.headerPanel.position.z = .33 + .52 * p;
 }
 cockpitLayout();
 addEventListener('resize', cockpitLayout);
@@ -2528,8 +2531,9 @@ function step(dt, t) {
   } else {
     const drunk = ph === 'cruise' ? 1 : (G.reaction === null ? .55 : .22);
     const swayX = Math.sin(t * .43) * .018 * drunk, swayR = Math.sin(t * .6) * .011 * drunk;
-    let pitch = (ph === 'crash' || ph === 'seq' || ph === 'burned') ? -.14 : -.12;
-    const ioff = off(-.3, 1.28, .55);
+    const tall = innerWidth / innerHeight < .8;
+    let pitch = (ph === 'crash' || ph === 'seq' || ph === 'burned') ? -.14 : (tall ? -.05 : -.1);
+    const ioff = off(-.3, tall ? 1.32 : 1.3, .58);
     camera.position.set(
       ioff[0] + swayX + (Math.random() - .5) * G.shake * .16,
       ioff[1] + Math.sin(t * 1.7) * .008 * drunk + (Math.random() - .5) * G.shake * .12,
