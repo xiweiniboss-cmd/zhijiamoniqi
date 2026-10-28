@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v49 -->
+<!-- zhijia v51 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -781,24 +781,146 @@ function buildCar(paintColor, withInterior) {
   car.traverse(o => { if (o.isMesh) exteriorMeshes.push(o); });
   const refs = { group: car, hoodPivot, wheels, exterior: exteriorMeshes };
   if (!withInterior) return refs;
-  /* ---- 内饰 ---- */
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(1.78, .05, 3.6), trim); floor.position.set(0, .455, -.25); car.add(floor);
-  const firewall = new THREE.Mesh(new THREE.BoxGeometry(1.72, .78, .06), trim); firewall.position.set(0, .72, -1.02); firewall.rotation.x = .35; car.add(firewall);
-  /* ---- 座舱（镜头空间：按画面坐标摆位，互不重叠） ---- */
+  /* ---- 座舱材质（整舱一套，避免各块各画各的） ---- */
+  const envT = getCarEnv();
+  const seatLeather = new THREE.MeshStandardMaterial({ color: 0x5c4a3c, roughness: .88, metalness: 0 });
+  const softDash = new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: .9, metalness: 0 });
+  const fasciaM = new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: .9, metalness: .02 });
+  const satinTrim = new THREE.MeshStandardMaterial({ color: 0x8d7f6e, roughness: .4, metalness: .16, envMap: envT, envMapIntensity: .4 });
+  const piano = new THREE.MeshStandardMaterial({ color: 0x07080b, roughness: .22, metalness: .75, envMap: envT, envMapIntensity: .65 });
+  const bezelM = new THREE.MeshStandardMaterial({ color: 0x3e4550, roughness: .32, metalness: .55, envMap: envT, envMapIntensity: .7 });
+  const brightTrim = new THREE.MeshStandardMaterial({ color: 0xd5dae1, roughness: .26, metalness: .92, envMap: envT, envMapIntensity: .9 });
+  const ventDark = new THREE.MeshStandardMaterial({ color: 0x07080a, roughness: .75, metalness: .12 });
+  const bladeM = new THREE.MeshStandardMaterial({ color: 0x8d939c, roughness: .4, metalness: .4 });
+  const plasticDark = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: .88, metalness: .04 });
+  const headlinerM = new THREE.MeshStandardMaterial({ color: 0x6f695f, roughness: .96, metalness: 0 });
+  const carpetM = new THREE.MeshStandardMaterial({ color: 0x2a2724, roughness: 1, metalness: 0 });
+  const _rbox = new Map();
+  function roundedBoxGeo(w, h, d, r) {
+    const key = [w, h, d, r].join(',');
+    if (_rbox.has(key)) return _rbox.get(key);
+    const rr = Math.max(.001, Math.min(r, w / 2 - .001, h / 2 - .001));
+    const sh = new THREE.Shape();
+    const x0 = -w / 2, y0 = -h / 2;
+    sh.moveTo(x0 + rr, y0);
+    sh.lineTo(x0 + w - rr, y0);
+    sh.absarc(x0 + w - rr, y0 + rr, rr, -Math.PI / 2, 0, false);
+    sh.lineTo(x0 + w, y0 + h - rr);
+    sh.absarc(x0 + w - rr, y0 + h - rr, rr, 0, Math.PI / 2, false);
+    sh.lineTo(x0 + rr, y0 + h);
+    sh.absarc(x0 + rr, y0 + h - rr, rr, Math.PI / 2, Math.PI, false);
+    sh.lineTo(x0, y0 + rr);
+    sh.absarc(x0 + rr, y0 + rr, rr, Math.PI, Math.PI * 1.5, false);
+    const bev = Math.min(rr * .42, d * .3);
+    const geo = new THREE.ExtrudeGeometry(sh, {
+      depth: Math.max(.006, d - bev * 2), bevelEnabled: true, bevelThickness: bev, bevelSize: bev * .85,
+      bevelSegments: 2, curveSegments: 6, steps: 1
+    });
+    geo.translate(0, 0, -d / 2);
+    geo.computeVertexNormals();
+    _rbox.set(key, geo);
+    return geo;
+  }
+  /* 水平圆角板：平面是圆角矩形，厚度朝上 */
+  function deckGeo(w, len, thick, r) {
+    const g = roundedBoxGeo(w, len, thick, r).clone();
+    g.rotateX(Math.PI / 2);
+    g.computeVertexNormals();
+    return g;
+  }
+  function smoothClosed(pts, samples) {
+    const curve = new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(x, y, 0)), true, 'catmullrom', .18);
+    const out = curve.getPoints(samples);
+    if (out.length > 2 && out[0].distanceTo(out[out.length - 1]) < 1e-4) out.pop();
+    return out;
+  }
+  function dashShell(profile, width) {
+    const pts = smoothClosed(profile.map(([z, y]) => [-z, y]), 48);
+    const sh = new THREE.Shape();
+    sh.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i].x, pts[i].y);
+    const geo = new THREE.ExtrudeGeometry(sh, {
+      depth: width, bevelEnabled: true, bevelThickness: .008, bevelSize: .008,
+      bevelSegments: 2, curveSegments: 2, steps: 20
+    });
+    geo.translate(0, 0, -width / 2);
+    geo.rotateY(Math.PI / 2);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      pos.setZ(i, pos.getZ(i) - (x * x) / 16);
+      pos.setY(i, pos.getY(i) - x * x * .018);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+  function arcTube(pts, radius, mat, radial) {
+    const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])));
+    return new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(12, pts.length * 6), radius, radial || 8, false), mat);
+  }
+  const spherePad = new THREE.SphereGeometry(1, 24, 16);
+  const capsule = new THREE.CapsuleGeometry(1, 1, 5, 12);
+  /* ---- 地板 / 防火墙 ---- */
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(1.78, .04, 3.6), plasticDark); floor.position.set(0, .45, -.25); car.add(floor);
+  const carpet = new THREE.Mesh(deckGeo(1.42, 1.55, .018, .08), carpetM); carpet.position.set(0, .478, .15); car.add(carpet);
+  const firewall = new THREE.Mesh(new THREE.BoxGeometry(1.72, .78, .06), fasciaM); firewall.position.set(0, .72, -1.02); firewall.rotation.x = .35; car.add(firewall);
+  /* ---- 座舱（镜头空间） ---- */
   const cockpit = new THREE.Group(); refs.cockpit = cockpit;
-  const dash = new THREE.Mesh(new THREE.BoxGeometry(3.3, .435, .12), trim); dash.position.set(0, -.16, -1.32); dash.rotation.x = .08; cockpit.add(dash);
-  const dashTop = new THREE.Mesh(new THREE.BoxGeometry(3.3, .04, .24), trim2); dashTop.position.set(0, .085, -1.36); dashTop.rotation.x = .12; cockpit.add(dashTop);
-  const dashBand = new THREE.Mesh(new THREE.BoxGeometry(3.3, .13, .02), std(0x6b6358, .7, 0));
-  dashBand.position.set(0, -.26, -1.256); dashBand.rotation.x = .08; cockpit.add(dashBand);
-  const dashTrim = new THREE.Mesh(new THREE.BoxGeometry(3.3, .018, .012), std(0xb9bdc4, .35, .9));
-  dashTrim.position.set(0, -.185, -1.26); dashTrim.rotation.x = .08; cockpit.add(dashTrim);
-  [-.62, .62].forEach(x => {
-    const vent = new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .03), paintDark);
-    vent.position.set(x * .65, -.05, -1.25); vent.rotation.x = .08; cockpit.add(vent);
+  const dashGrp = new THREE.Group(); cockpit.add(dashGrp);
+  /* 上盖软包 + 朝驾驶员鼓起的圆管翻边，主面板退在后面 */
+  dashGrp.add(new THREE.Mesh(dashShell([
+    [-1.50, .0], [-1.46, .055], [-1.36, .078], [-1.28, .04],
+    [-1.30, .012], [-1.40, .008], [-1.50, -.01]
+  ], 3.2), softDash));
+  dashGrp.add(arcTube([
+    [-1.55, .07, -1.34], [-.55, .1, -1.22], [.45, .1, -1.21], [1.55, .06, -1.36]
+  ], .026, softDash, 10));
+  dashGrp.add(new THREE.Mesh(dashShell([
+    [-1.46, .02], [-1.34, .0], [-1.29, -.08], [-1.275, -.22],
+    [-1.27, -.34], [-1.34, -.4], [-1.46, -.22], [-1.5, -.02]
+  ], 3.2), fasciaM));
+  dashGrp.add(arcTube([
+    [-1.45, -.42, -1.16], [-.15, -.4, -1.1], [.85, -.4, -1.1], [1.45, -.43, -1.18]
+  ], .028, plasticDark, 8));
+  dashGrp.add(arcTube([
+    [-1.3, -.4, -1.12], [0, -.385, -1.08], [1.3, -.4, -1.14]
+  ], .011, satinTrim, 7));
+  const defrost = new THREE.Mesh(roundedBoxGeo(1.55, .016, .05, .008), ventDark);
+  defrost.position.set(0, .07, -1.42); defrost.rotation.x = .4; dashGrp.add(defrost);
+  for (let i = -7; i <= 7; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(.006, .01, .045), bladeM);
+    fin.position.set(i * .09, .072, -1.425); fin.rotation.x = .4; dashGrp.add(fin);
+  }
+  [[-1.02, -.09], [1.08, -.09]].forEach(([x, y]) => {
+    const slot = new THREE.Mesh(roundedBoxGeo(.42, .062, .03, .026), ventDark);
+    slot.position.set(x, y, -1.2); dashGrp.add(slot);
+    const chrome = new THREE.Mesh(roundedBoxGeo(.45, .08, .01, .028), brightTrim);
+    chrome.position.set(x, y, -1.218); dashGrp.add(chrome);
+    for (let i = -1; i <= 1; i++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(.32, .006, .014), bladeM);
+      blade.position.set(x, y + i * .016, -1.182); dashGrp.add(blade);
+    }
   });
-  /* ---- A 柱 + 挡风下沿（镜头空间，竖屏时自然出画） ---- */
-  const pillarMat = std(0x111317, .9);
-  const pillars = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.BoxGeometry(.13, 1, .09), pillarMat); cockpit.add(m); return m; });
+  /* A 柱：圆角截面，随 placePillars 拉伸 */
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: .92, metalness: 0 });
+  function pillarSection() {
+    const g = roundedBoxGeo(.1, .07, 1, .028).clone();
+    g.rotateX(Math.PI / 2);
+    g.computeVertexNormals();
+    return g;
+  }
+  const pillarGeo = pillarSection();
+  const pillarTrimGeo = pillarSection();
+  const pillars = [0, 1].map(i => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(pillarGeo, pillarMat));
+    const lip = new THREE.Mesh(pillarTrimGeo, brightTrim);
+    lip.scale.set(.22, 1, .22);
+    lip.position.z = i === 0 ? .03 : -.03;
+    g.add(lip);
+    cockpit.add(g);
+    return g;
+  });
   refs.placePillars = (pts) => pillars.forEach((m, i) => {
     const [x0, y0, z0, x1, y1, z1] = pts[i];
     const a = new THREE.Vector3(x0, y0, z0), b = new THREE.Vector3(x1, y1, z1);
@@ -806,17 +928,21 @@ function buildCar(paintColor, withInterior) {
     m.position.copy(a).add(b).multiplyScalar(.5);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
   });
-  const cowl = new THREE.Mesh(new THREE.BoxGeometry(3.3, .025, .1), std(0x0b0c0f, .95));
-  cowl.position.set(0, .11, -1.44); cockpit.add(cowl);
   /* ---- 大悬浮中控屏（新能源车风格） ---- */
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x2f7bff });
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(2.9, .014, .012), stripMat);
-  strip.position.set(0, -.345, -1.26); strip.rotation.x = -.1; cockpit.add(strip);
   refs.stripMat = stripMat;
-  const scrBezel = new THREE.Mesh(new THREE.BoxGeometry(.39, .24, .02), trim2);
-  scrBezel.position.set(.30, -.165, -1.252); scrBezel.rotation.x = -.04; cockpit.add(scrBezel);
+  dashGrp.add(arcTube([
+    [-1.25, -.45, -1.12], [0, -.435, -1.06], [1.25, -.45, -1.14]
+  ], .007, stripMat, 6));
+  const scrPocket = new THREE.Mesh(roundedBoxGeo(.56, .36, .02, .06), plasticDark);
+  scrPocket.position.set(.30, -.168, -1.3); scrPocket.rotation.set(-.04, -.05, 0); dashGrp.add(scrPocket);
+  const scrLip = new THREE.Mesh(roundedBoxGeo(.52, .32, .012, .055), brightTrim);
+  scrLip.position.set(.30, -.166, -1.282); scrLip.rotation.x = -.04; dashGrp.add(scrLip);
+  const scrBezel = new THREE.Mesh(roundedBoxGeo(.48, .3, .03, .05), bezelM);
+  scrBezel.position.set(.30, -.165, -1.268); scrBezel.rotation.x = -.04; cockpit.add(scrBezel);
   const screenGroup = new THREE.Group(); screenGroup.position.set(.30, -.165, -1.232); screenGroup.rotation.x = -.04; screenGroup.rotation.y = -.08; cockpit.add(screenGroup);
-  const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.375, .22, .03), std(0x14161a, .35, .5)); screenGroup.add(screenBody);
+  const screenBody = new THREE.Mesh(new THREE.BoxGeometry(.36, .198, .01), std(0x0c0e12, .4, .4));
+  screenBody.position.z = .008; screenGroup.add(screenBody);
   const scrCanvas = document.createElement('canvas'); scrCanvas.width = 512; scrCanvas.height = 288;
   const scrTex = new THREE.CanvasTexture(scrCanvas);
   const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(.37, .208), new THREE.MeshBasicMaterial({ map: scrTex }));
@@ -872,8 +998,10 @@ function buildCar(paintColor, withInterior) {
   const clusterCanvas = document.createElement('canvas'); clusterCanvas.width = 512; clusterCanvas.height = 128;
   const clusterTex = new THREE.CanvasTexture(clusterCanvas);
   const clusterMesh = new THREE.Mesh(new THREE.PlaneGeometry(.38, .117), new THREE.MeshBasicMaterial({ map: clusterTex }));
-  const clusterHousing = new THREE.Mesh(new THREE.BoxGeometry(.43, .165, .045), std(0x0d0f12, .3, .2));
-  clusterHousing.position.set(-.2, -.036, -1.2375); clusterHousing.rotation.x = -.1; cockpit.add(clusterHousing);
+  const clusterLip = new THREE.Mesh(roundedBoxGeo(.52, .22, .012, .04), brightTrim);
+  clusterLip.position.set(-.2, -.036, -1.268); clusterLip.rotation.x = -.1; dashGrp.add(clusterLip);
+  const clusterHousing = new THREE.Mesh(roundedBoxGeo(.48, .2, .032, .038), bezelM);
+  clusterHousing.position.set(-.2, -.036, -1.252); clusterHousing.rotation.x = -.1; cockpit.add(clusterHousing);
   clusterMesh.position.set(-.2, -.036, -1.212); clusterMesh.rotation.x = -.1; cockpit.add(clusterMesh);
   
   refs.drawCluster = (speedKmh, gear) => {
@@ -912,7 +1040,7 @@ function buildCar(paintColor, withInterior) {
   }
   const emblem = new THREE.Mesh(new THREE.CircleGeometry(.033, 20), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(emblemC) }));
   emblem.position.z = .027; wheel.add(emblem);
-  const shroud = new THREE.Mesh(new THREE.BoxGeometry(.12, .1, .36), trim);
+  const shroud = new THREE.Mesh(roundedBoxGeo(.16, .12, .32, .045), plasticDark);
   shroud.position.set(-.19, -.225, -1.15); shroud.rotation.x = .5; cockpit.add(shroud);
   [-1, 1].forEach(s => {
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(.011, .013, .17, 8), trim2);
@@ -929,43 +1057,167 @@ function buildCar(paintColor, withInterior) {
   refs.wheelSet.concat(refs.screenSet).forEach(o => { o.userData.bx = o.position.x; o.userData.by = o.position.y; });
   /* （旧镜头空间顶框/遮阳板/后视镜在顶衬之后不可见，已移除；车顶内饰改放车体空间贴顶衬前沿，见内饰段） */
   const footLightC = new THREE.PointLight(0xffd9a8, .55, 2.0, 1.2); footLightC.position.set(-.12, -.43, -.72); cockpit.add(footLightC);
-  const dashLightC = new THREE.PointLight(0x9cc4ff, .5, 2.6, 1.2); dashLightC.position.set(0, -.06, -.55); cockpit.add(dashLightC);
-  /* 中控台 + 座椅 */
-  const console_ = new THREE.Mesh(new THREE.BoxGeometry(.48, .2, 1.15), trim); console_.position.set(0, .6, .42); car.add(console_);
-  const gearStick = new THREE.Mesh(new THREE.CylinderGeometry(.025, .03, .14, 8), trim2); gearStick.position.set(0, .74, .12); /* 档杆圆柱在车内视角里太突兀，已去掉 */
-  [[-.36, .5, .95], [.42, .48, .8]].forEach(([x, bz, kz]) => {
-    const base = new THREE.Mesh(new THREE.BoxGeometry(.56, .15, .56), fabric); base.position.set(x, .55, bz); car.add(base);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(.56, .78, .15), fabric); back.position.set(x, .96, kz); back.rotation.x = .13; car.add(back);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(.27, .17, .1), fabric); head.position.set(x, 1.28, kz + .08); car.add(head);
-  });
-  /* 车门内饰板 + A柱 + 车顶 */
+  const dashLightC = new THREE.PointLight(0xfff0dc, .85, 2.8, 1.15); dashLightC.position.set(.05, -.02, -.62); cockpit.add(dashLightC);
+  /* 中控台：圆角甲板 + 皮扶手 + 杯托 + 充电板 + 矮旋钮 */
+  const consoleGrp = new THREE.Group(); car.add(consoleGrp);
+  const tunnel = new THREE.Mesh(deckGeo(.32, 1.02, .2, .07), softDash);
+  tunnel.position.set(0, .6, .1); consoleGrp.add(tunnel);
+  const deck = new THREE.Mesh(deckGeo(.26, .78, .028, .05), fasciaM);
+  deck.position.set(0, .712, .02); consoleGrp.add(deck);
   [-1, 1].forEach(s => {
-    const door = new THREE.Mesh(new THREE.BoxGeometry(.05, .52, 2), trim); door.position.set(s * .86, .82, .12); car.add(door);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(.09, .06, .7), trim2); arm.position.set(s * .83, .92, .18); car.add(arm);
+    consoleGrp.add(arcTube([[s * .145, .58, -.28], [s * .15, .64, .15], [s * .142, .62, .52]], .006, stripMat, 6));
   });
-  const lgC = document.createElement('canvas'); lgC.width = 512; lgC.height = 384;
-  const lgX = lgC.getContext('2d'); const lgG = lgX.createLinearGradient(0, 0, 0, 384);
-  lgG.addColorStop(0, '#7a756a'); lgG.addColorStop(1, '#57534a'); lgX.fillStyle = lgG; lgX.fillRect(0, 0, 512, 384);
-  lgX.fillStyle = 'rgba(255,255,255,.05)';
-  for (let i = 0; i < 2400; i++) lgX.fillRect(Math.random() * 512, Math.random() * 384, 1.6, 1.6);
-  lgX.fillStyle = 'rgba(0,0,0,.16)';
-  for (let i = 0; i < 2400; i++) lgX.fillRect(Math.random() * 512, Math.random() * 384, 1.6, 1.6);
-  [308, 71].forEach(y0 => {
-    lgX.fillStyle = 'rgba(0,0,0,.35)'; lgX.fillRect(0, y0 - 8, 512, 5);
-    lgX.fillStyle = '#5d594f'; lgX.strokeStyle = 'rgba(0,0,0,.5)';
-    [28, 322].forEach(x => { lgX.fillRect(x, y0, 162, 56); lgX.strokeRect(x, y0, 162, 56); });
-    lgX.fillStyle = '#4e4a41'; lgX.fillRect(196, y0 - 4, 120, 60); lgX.strokeStyle = 'rgba(0,0,0,.5)'; lgX.strokeRect(196, y0 - 4, 120, 60);
-    lgX.fillStyle = '#ffd9a0';
-    lgX.beginPath(); lgX.arc(232, y0 + 26, 13, 0, 7); lgX.fill();
-    lgX.beginPath(); lgX.arc(280, y0 + 26, 13, 0, 7); lgX.fill();
+  [-1, 1].forEach(s => {
+    const well = new THREE.Mesh(new THREE.CylinderGeometry(.038, .032, .05, 20), ventDark);
+    well.position.set(s * .058, .7, .02); consoleGrp.add(well);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(.04, .005, 8, 22), brightTrim);
+    rim.rotation.x = Math.PI / 2; rim.position.set(s * .058, .732, .02); consoleGrp.add(rim);
   });
-  const linerSide = new THREE.MeshBasicMaterial({ color: 0x0d0e10 });
-  const liner = new THREE.Mesh(new THREE.BoxGeometry(1.44, .05, .85), [linerSide, linerSide, linerSide, new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(lgC), roughness: .95, metalness: 0 }), linerSide, linerSide]); liner.position.set(0, 1.44, .82); car.add(liner);
-  /* 车顶内饰（车体空间，全部贴顶衬）：前横梁饰板 + 贴顶遮阳板 + 顶棚灯控制台 + 后视镜贴车顶悬挂 */
-  const headerPanel = new THREE.Mesh(new THREE.BoxGeometry(1.44, .03, .16), std(0x55524a, .95));
-  headerPanel.position.set(0, 1.40, .33); car.add(headerPanel);
+  const charge = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .008, 24), piano);
+  charge.position.set(0, .73, .16); consoleGrp.add(charge);
+  const chargeRing = new THREE.Mesh(new THREE.TorusGeometry(.034, .003, 6, 22), brightTrim);
+  chargeRing.rotation.x = Math.PI / 2; chargeRing.position.set(0, .736, .16); consoleGrp.add(chargeRing);
+  const dial = new THREE.Mesh(new THREE.CylinderGeometry(.028, .032, .018, 22), piano);
+  dial.position.set(0, .738, .3); consoleGrp.add(dial);
+  const dialRing = new THREE.Mesh(new THREE.TorusGeometry(.03, .004, 8, 22), brightTrim);
+  dialRing.rotation.x = Math.PI / 2; dialRing.position.set(0, .748, .3); consoleGrp.add(dialRing);
+  const dialLed = new THREE.Mesh(new THREE.SphereGeometry(.005, 8, 6), stripMat);
+  dialLed.position.set(0, .75, .324); consoleGrp.add(dialLed);
+  const armrest = new THREE.Mesh(deckGeo(.18, .3, .05, .05), seatLeather);
+  armrest.position.set(0, .74, .5); consoleGrp.add(armrest);
+  /* 座椅：光滑坐垫 / 侧翼 / 靠背 / 头枕，左右各一套 */
+  function formGeo(kind) {
+    const segU = 22, segV = kind === 'back' ? 26 : 18;
+    const positions = [], indices = [];
+    const row = segU + 1;
+    const grid = (front) => {
+      const start = positions.length / 3;
+      for (let iv = 0; iv <= segV; iv++) for (let iu = 0; iu <= segU; iu++) {
+        const nx = iu / segU * 2 - 1, ny = iv / segV * 2 - 1;
+        const ax = Math.abs(nx), ay = Math.abs(ny);
+        let x, y, z;
+        if (kind === 'cushion') {
+          const round = 1 - .32 * Math.pow(ax * ay, .85);
+          x = nx * .22 * round; z = ny * .2 * round;
+          const side = Math.pow(ax, 1.35), fall = Math.max(0, -ny);
+          y = front ? .008 + side * .07 + Math.max(0, ny) * .012 - fall * fall * .035 - (1 - ax * ax) * .014 : -.045;
+          if (!front) { x *= .9; z *= .88; }
+        } else {
+          const round = 1 - .28 * Math.pow(ax * Math.max(ay, .15), .9);
+          x = nx * .22 * round;
+          y = ny * .31 * (1 - .08 * ax * ax * Math.max(0, ny));
+          const wing = Math.pow(ax, 1.25) * .085;
+          z = front ? -.015 - wing + (1 - ax * ax) * .01 : .055 + wing * .35;
+          if (!front) { x *= .96; y *= .97; }
+        }
+        positions.push(x, y, z);
+      }
+      return start;
+    };
+    const a = grid(true), b = grid(false);
+    for (let iv = 0; iv < segV; iv++) for (let iu = 0; iu < segU; iu++) {
+      const i00 = a + iv * row + iu;
+      indices.push(i00, i00 + row, i00 + row + 1, i00, i00 + row + 1, i00 + 1);
+      const j00 = b + iv * row + iu;
+      indices.push(j00, j00 + 1, j00 + row + 1, j00, j00 + row + 1, j00 + row);
+    }
+    const edge = [];
+    for (let iu = 0; iu < segU; iu++) edge.push([iu, 0]);
+    for (let iv = 0; iv < segV; iv++) edge.push([segU, iv]);
+    for (let iu = segU; iu > 0; iu--) edge.push([iu, segV]);
+    for (let iv = segV; iv > 0; iv--) edge.push([0, iv]);
+    for (let e = 0; e < edge.length; e++) {
+      const [u0, v0] = edge[e], [u1, v1] = edge[(e + 1) % edge.length];
+      const t0 = a + v0 * row + u0, t1 = a + v1 * row + u1;
+      const s0 = b + v0 * row + u0, s1 = b + v1 * row + u1;
+      indices.push(t0, s0, s1, t0, s1, t1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const n = geo.attributes.normal, probe = a + ((segV / 2) | 0) * row + ((segU / 2) | 0);
+    const want = kind === 'cushion' ? [0, 1, 0] : [0, 0, -1];
+    const dot = n.getX(probe) * want[0] + n.getY(probe) * want[1] + n.getZ(probe) * want[2];
+    if (dot < 0) {
+      const idx = geo.index.array;
+      for (let i = 0; i < idx.length; i += 3) { const t = idx[i]; idx[i] = idx[i + 1]; idx[i + 1] = t; }
+      geo.computeVertexNormals();
+    }
+    return geo;
+  }
+  const cushionGeo = formGeo('cushion'), backGeo = formGeo('back');
+  function buildSeat(x, cushionZ, backZ) {
+    const seat = new THREE.Group();
+    const pad = new THREE.Mesh(cushionGeo, seatLeather);
+    pad.position.set(x, .6, cushionZ); seat.add(pad);
+    const base = new THREE.Mesh(deckGeo(.34, .36, .04, .04), plasticDark);
+    base.position.set(x, .5, cushionZ + .02); seat.add(base);
+    [-.1, .1].forEach(dx => {
+      const rail = new THREE.Mesh(deckGeo(.016, .28, .012, .005), brightTrim);
+      rail.position.set(x + dx, .472, cushionZ); seat.add(rail);
+    });
+    const inb = x < 0 ? .15 : -.15;
+    const buckle = new THREE.Mesh(roundedBoxGeo(.03, .016, .022, .005), brightTrim);
+    buckle.position.set(x + inb, .61, cushionZ + .08); seat.add(buckle);
+    const btn = new THREE.Mesh(new THREE.SphereGeometry(.006, 8, 6), new THREE.MeshStandardMaterial({ color: 0xc4453c, roughness: .4 }));
+    btn.position.set(x + inb * 1.12, .62, cushionZ + .08); seat.add(btn);
+    const back = new THREE.Group();
+    back.position.set(x, .9, backZ); back.rotation.x = .22; seat.add(back);
+    back.add(new THREE.Mesh(backGeo, seatLeather));
+    const head = new THREE.Mesh(spherePad, seatLeather);
+    head.scale.set(.12, .07, .055); head.position.set(0, .4, -.02); back.add(head);
+    [-.04, .04].forEach(px => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(.006, .007, .06, 8), plasticDark);
+      post.position.set(px, .32, .005); back.add(post);
+    });
+    car.add(seat);
+  }
+  buildSeat(-.38, .44, 1.0);
+  buildSeat(.42, .1, .4);
+  /* 门板：软包嵌条、扶手、拉手、窗控、氛围灯 */
+  [-1, 1].forEach(s => {
+    const shellD = new THREE.Mesh(roundedBoxGeo(.05, .62, 1.32, .05), fasciaM);
+    shellD.position.set(s * .88, .8, .16); car.add(shellD);
+    const inset = new THREE.Mesh(roundedBoxGeo(.014, .26, .62, .04), seatLeather);
+    inset.position.set(s * .848, .98, .02); car.add(inset);
+    const dArm = new THREE.Mesh(spherePad, seatLeather);
+    dArm.scale.set(.035, .03, .26); dArm.position.set(s * .84, .78, .2); car.add(dArm);
+    const handle = new THREE.Mesh(capsule, brightTrim);
+    handle.scale.set(.011, .1, .011); handle.rotation.x = Math.PI / 2;
+    handle.position.set(s * .845, .92, -.22); car.add(handle);
+    const pack = new THREE.Mesh(roundedBoxGeo(.012, .045, .18, .014), piano);
+    pack.position.set(s * .842, .8, .2); car.add(pack);
+    [-.05, -.018, .018, .05].forEach(dz => {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(.007, 8, 6), brightTrim);
+      b.position.set(s * .832, .8, .2 + dz); car.add(b);
+    });
+    const spk = new THREE.Mesh(new THREE.CircleGeometry(.065, 18), ventDark);
+    spk.rotation.y = s * Math.PI / 2; spk.position.set(s * .852, .6, .55); car.add(spk);
+    const spkR = new THREE.Mesh(new THREE.TorusGeometry(.055, .004, 6, 18), brightTrim);
+    spkR.rotation.y = s * Math.PI / 2; spkR.position.set(s * .854, .6, .55); car.add(spkR);
+    const dGlow = new THREE.Mesh(new THREE.BoxGeometry(.006, .008, .95), stripMat);
+    dGlow.position.set(s * .85, .58, .18); car.add(dGlow);
+  });
+  /* 顶衬：软顶 + 前缘圆角 + 顶灯舱（中央后视镜按原要求不加） */
+  const liner = new THREE.Mesh(deckGeo(1.5, .95, .04, .06), headlinerM);
+  liner.position.set(0, 1.45, .82); car.add(liner);
+  const linerRoll = arcTube([[-.7, 1.42, .38], [0, 1.43, .34], [.7, 1.42, .38]], .028, headlinerM, 8);
+  car.add(linerRoll);
+  const headerPanel = new THREE.Group();
+  headerPanel.position.set(0, 1.4, .33);
+  const pod = new THREE.Mesh(deckGeo(.46, .18, .04, .03), fasciaM);
+  headerPanel.add(pod);
+  [-.09, .09].forEach(x => {
+    const lamp = new THREE.Mesh(new THREE.CircleGeometry(.028, 16), new THREE.MeshBasicMaterial({ color: 0xffe6c2 }));
+    lamp.rotation.x = Math.PI / 2; lamp.position.set(x, -.022, 0); headerPanel.add(lamp);
+    const bezel = new THREE.Mesh(new THREE.TorusGeometry(.03, .004, 6, 16), brightTrim);
+    bezel.rotation.x = Math.PI / 2; bezel.position.set(x, -.02, 0); headerPanel.add(bezel);
+  });
+  car.add(headerPanel);
   refs.liner = liner; refs.headerPanel = headerPanel; refs.firewall = firewall;
-  /* 遮阳板/顶灯画在顶衬纹理里（零遮挡）；中央后视镜已按老板要求删除 */
+  const seatFill = new THREE.PointLight(0xffe2c4, .35, 2.2, 1.4);
+  seatFill.position.set(0, 1.05, .25); car.add(seatFill);
   /* 踏板总成（镜头空间：悬挂在仪表台下方脚窝区） */
   function pedalAssembly(px, padW, padH) {
     const grp = new THREE.Group(); grp.position.set(px, -.41, -1.22);
