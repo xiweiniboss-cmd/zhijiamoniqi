@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v51 -->
+<!-- zhijia v52 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -901,33 +901,7 @@ function buildCar(paintColor, withInterior) {
       blade.position.set(x, y + i * .016, -1.182); dashGrp.add(blade);
     }
   });
-  /* A 柱：圆角截面，随 placePillars 拉伸 */
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: .92, metalness: 0 });
-  function pillarSection() {
-    const g = roundedBoxGeo(.1, .07, 1, .028).clone();
-    g.rotateX(Math.PI / 2);
-    g.computeVertexNormals();
-    return g;
-  }
-  const pillarGeo = pillarSection();
-  const pillarTrimGeo = pillarSection();
-  const pillars = [0, 1].map(i => {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(pillarGeo, pillarMat));
-    const lip = new THREE.Mesh(pillarTrimGeo, brightTrim);
-    lip.scale.set(.22, 1, .22);
-    lip.position.z = i === 0 ? .03 : -.03;
-    g.add(lip);
-    cockpit.add(g);
-    return g;
-  });
-  refs.placePillars = (pts) => pillars.forEach((m, i) => {
-    const [x0, y0, z0, x1, y1, z1] = pts[i];
-    const a = new THREE.Vector3(x0, y0, z0), b = new THREE.Vector3(x1, y1, z1);
-    m.scale.set(1, a.distanceTo(b), 1);
-    m.position.copy(a).add(b).multiplyScalar(.5);
-    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-  });
+  /* 左右 A 柱已去掉。竖屏和横屏不再用立柱框住挡风玻璃 */
   /* ---- 大悬浮中控屏（新能源车风格） ---- */
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x2f7bff });
   refs.stripMat = stripMat;
@@ -1272,11 +1246,6 @@ function cockpitLayout() {
   CAR.screenSet.forEach(o => { o.position.x = o.userData.bx - .11 * p; o.position.y = o.userData.by + .02 * p; o.scale.setScalar(1 - .34 * p); });
   CAR.liner.position.z = .82 + .55 * p;
   CAR.linerRoll.position.z = .62 * p;
-  /* A 柱：横屏放在真实位置；竖屏收进画面两侧，框住挡风玻璃 */
-  const L = [-1.12, .06, -1.38, -.66, 1.0, -.5], R = [1.42, .06, -1.38, 1.0, 1.0, -.5];
-  const Lp = [-.52, .2, -1.3, -.4, .95, -1.0], Rp = [.52, .2, -1.3, .4, .95, -1.0];
-  const mix = (A, B) => A.map((v, i) => v + (B[i] - v) * p);
-  CAR.placePillars([mix(L, Lp), mix(R, Rp)]);
   CAR.headerPanel.position.z = .33 + .52 * p;
 }
 cockpitLayout();
