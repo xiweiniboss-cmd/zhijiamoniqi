@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v52 -->
+<!-- zhijia v53 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -61,6 +61,10 @@
   .seq-btn.done { background:rgba(24,110,44,.9); border-color:#51cf66; opacity:.8; }
   .seq-btn.wrong { background:rgba(150,20,20,.92); border-color:#ff5148; }
   #fireOverlay { position:fixed; inset:0; z-index:7; pointer-events:none; opacity:0; background:radial-gradient(ellipse at 50% 112%, rgba(255,110,0,.8) 0%, rgba(255,60,0,.34) 30%, rgba(120,0,0,.14) 52%, transparent 72%); transition:opacity .3s; }
+  #fireOverlay.heat { background:
+    radial-gradient(ellipse at 50% 116%, rgba(255,186,80,.32) 0%, rgba(255,70,0,.12) 22%, rgba(70,10,0,.08) 48%, transparent 70%),
+    radial-gradient(ellipse at 20% 92%, rgba(255,48,0,.10) 0%, transparent 34%),
+    radial-gradient(ellipse at 80% 96%, rgba(255,120,16,.11) 0%, transparent 32%); }
   #whiteFlash { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:20; transition:opacity .25s; }
 
   /* ---------- 通用弹窗 ---------- */
@@ -1778,9 +1782,9 @@ pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
 const pMat = new THREE.PointsMaterial({ size: .5, vertexColors: true, transparent: true, opacity: .8, depthWrite: false });
 const points = new THREE.Points(pGeo, pMat); points.visible = false; points.frustumCulled = false; scene.add(points);
 const particles = Array.from({ length: P_COUNT }, () => ({ life: Math.random(), vx: 0, vy: 0, vz: 0, x: 0, y: -99, z: 0 }));
-let particleMode = 'off';
+let particleMode = 'off', failFireOn = false;
 function updateParticles(dt, ex, ey, ez) {
-  if (particleMode === 'off') { points.visible = false; return; }
+  if (particleMode === 'off' || failFireOn) { points.visible = false; return; }
   points.visible = true;
   const fire = particleMode === 'fire';
   pMat.blending = fire ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -1824,6 +1828,378 @@ for (let i = 0; i < 16; i++) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: .5, depthWrite: false }));
   s.userData.ph = i / 16; s.userData.dx = (Math.random() - .5) * 2.2; s.userData.dz = (Math.random() - .5) * 3.5;
   smokeGroup.add(s); smokeSprites.push(s);
+}
+/* 逃生失败结算专用火：画布火舌序列帧 + 烟柱 + 火星 + 热浪。
+   逃生成功仍走上面的光晕精灵，不进这条路径。 */
+const FAIL_FRAMES = 5;
+function hash2(ix, iy) {
+  let n = Math.imul(ix | 0, 374761393) + Math.imul(iy | 0, 668265263);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+}
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y) {
+  let v = 0, a = 0.5, f = 1, s = 0;
+  for (let i = 0; i < 4; i++) { v += a * vnoise(x * f, y * f); s += a; f *= 2.03; a *= 0.5; }
+  return v / s;
+}
+function sampleRamp(stops, t) {
+  if (t <= stops[0][0]) return stops[0];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const a = stops[i - 1], b = stops[i], f = (t - a[0]) / (b[0] - a[0] || 1);
+      return [t, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f, a[4] + (b[4] - a[4]) * f];
+    }
+  }
+  return stops[stops.length - 1];
+}
+const BODY_RAMP = [
+  [0, 0, 0, 0, 0],
+  [.07, .55, .04, 0, .10],
+  [.20, .92, .10, 0, .62],
+  [.38, 1, .32, .02, .86],
+  [.58, 1, .62, .08, .94],
+  [.78, 1, .86, .32, .98],
+  [1, 1, .98, .86, 1]
+];
+const CORE_RAMP = [
+  [0, 0, 0, 0, 0],
+  [.28, 1, .42, .02, 0],
+  [.48, 1, .62, .08, .40],
+  [.72, 1, .90, .40, .78],
+  [1, 1, .99, .92, 1]
+];
+function smooth01(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+function flameHeat(u, v, seed) {
+  const rise = 1 - v;
+  const n1 = fbm(u * 2.3 + seed, rise * 3.1 + seed);
+  const n2 = fbm(u * 4.8 + seed + 1.7, rise * 5.6 + 2.4);
+  const lobes = [
+    { c: .34, w: .24, p: .92 },
+    { c: .66, w: .2, p: 1 },
+    { c: .5, w: .16, p: .78 }
+  ];
+  let heat = 0;
+  for (let i = 0; i < lobes.length; i++) {
+    const lobe = lobes[i];
+    const curl = (i === 1 ? n1 : n2) - .5;
+    const cx = lobe.c + curl * (.1 + rise * .22);
+    const width = (.05 + lobe.w * Math.pow(v, .48)) * (.8 + .35 * n1);
+    const body = smooth01(1 - Math.abs(u - cx) / Math.max(.025, width));
+    const shred = body > .45 ? 1 : .42 + .58 * n2;
+    const vert = Math.pow(v, .1 + (1 - lobe.p) * .25) * (v > .98 ? (1 - v) / .02 : 1);
+    heat = Math.max(heat, body * vert * shred * lobe.p);
+    const core = Math.exp(-Math.pow((u - cx) / Math.max(.02, width * .36), 2)) * Math.pow(v, .28);
+    heat = Math.min(1, heat + core * .6 * lobe.p);
+  }
+  const base = smooth01(1 - Math.abs(u - .5) / (.4 + .1 * (n1 - .5))) * smooth01(Math.min(1, v / .42));
+  return Math.min(1, Math.max(heat, base * .9 * Math.pow(v, .15)));
+}
+function paintFlame(w, h, seed, hot) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const img = g.createImageData(w, h), d = img.data;
+  const ramp = hot ? CORE_RAMP : BODY_RAMP;
+  for (let y = 0; y < h; y++) {
+    const v = y / (h - 1);
+    for (let x = 0; x < w; x++) {
+      let heat = flameHeat(x / (w - 1), v, seed);
+      heat = hot ? Math.pow(heat, .65) : Math.pow(heat, 1.05);
+      const col = sampleRamp(ramp, heat);
+      const i = (y * w + x) * 4;
+      d[i] = col[1] * 255; d[i + 1] = col[2] * 255; d[i + 2] = col[3] * 255; d[i + 3] = col[4] * 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  const og = out.getContext('2d');
+  og.filter = 'blur(1.15px)'; og.drawImage(c, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+function paintSmokeTex() {
+  const w = 128, h = 128;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const img = g.createImageData(w, h), d = img.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const u = x / (w - 1), v = y / (h - 1);
+    const dx = u - .5, dy = v - .5, r = Math.sqrt(dx * dx + dy * dy) * 2;
+    const n = fbm(u * 3.1 + 1.4, v * 3.1 + 6.2);
+    const n2 = fbm(u * 6.2 + .4, v * 6.2 + 2);
+    let a = 1 - Math.min(1, Math.pow(r, 1.05) * (.8 + (1 - n) * .4));
+    if (a < 0) a = 0; else a = Math.pow(a, .8) * (.78 + .22 * n2);
+    const shade = .78 + .18 * n;
+    const i = (y * w + x) * 4;
+    d[i] = shade * 255; d[i + 1] = (shade * .96) * 255; d[i + 2] = (shade * .9) * 255; d[i + 3] = Math.min(1, a) * 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+function paintEmberTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,245,1)');
+  gr.addColorStop(.28, 'rgba(255,214,110,.95)');
+  gr.addColorStop(.6, 'rgba(255,110,16,.35)');
+  gr.addColorStop(1, 'rgba(255,50,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+function paintHeatNoise() {
+  const w = 128, h = 128;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const img = g.createImageData(w, h), d = img.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    d[i] = fbm(x * .07, y * .07) * 255;
+    d[i + 1] = fbm(x * .07 + 5.2, y * .07 + 1.7) * 255;
+    d[i + 2] = 128; d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+const failBodyTex = [], failCoreTex = [];
+for (let i = 0; i < FAIL_FRAMES; i++) {
+  failBodyTex.push(paintFlame(80, 168, i * 1.51 + .4, false));
+  failCoreTex.push(paintFlame(56, 144, i * 1.51 + 3.3, true));
+}
+const failSmokeTex = paintSmokeTex();
+const failEmberTex = paintEmberTex();
+const failNoiseTex = paintHeatNoise();
+const failFireGroup = new THREE.Group(); failFireGroup.visible = false; failFireGroup.frustumCulled = false; CAR.group.add(failFireGroup);
+const hoodFire = new THREE.Group(); hoodFire.visible = false; hoodFire.frustumCulled = false; CAR.hoodPivot.add(hoodFire);
+const failBodies = [], failCores = [], failGlows = [], failSmokes = [], failEmbers = [];
+function makeFailSprite(map, blending) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, blending, opacity: 1 }));
+  s.frustumCulled = false;
+  return s;
+}
+function addFailFlame(parent, x, y, z, opt) {
+  opt.x = x; opt.y = y; opt.z = z; opt.ft = Math.random() * 8;
+  const s = makeFailSprite(failBodyTex[opt.frame % FAIL_FRAMES], THREE.NormalBlending);
+  s.position.set(x, y, z); s.userData = opt; s.renderOrder = opt.soft || opt.base ? 1 : 2; parent.add(s); failBodies.push(s);
+  if (opt.core) {
+    const c = makeFailSprite(failCoreTex[(opt.frame + 2) % FAIL_FRAMES], THREE.AdditiveBlending);
+    const cu = Object.assign({}, opt, { h: opt.h * .62, w: opt.w * .48, ft: Math.random() * 8 });
+    c.position.set(x, y, z); c.userData = cu; c.renderOrder = 3; parent.add(c); failCores.push(c);
+  }
+}
+const failZones = [
+  { x: 0, y: 1.42, z: .05, n: 4, h: 1.85, w: 1.45, spread: [1.25, .1, 1.7], delay: .18, soft: true },
+  { x: 0, y: .78, z: -1.95, n: 3, h: 2.35, w: 1.1, spread: [.75, .16, .48], delay: .02 },
+  { x: 0, y: 1.08, z: -1.15, n: 2, h: 2.55, w: 1.0, spread: [.6, .12, .28], delay: .26 },
+  { x: 0, y: 1.62, z: .2, n: 3, h: 3.15, w: .95, spread: [1.05, .08, 1.15], delay: .48 },
+  { x: -1.02, y: .62, z: 0, n: 2, h: 2.15, w: .9, spread: [.1, .28, 1.55], delay: .38 },
+  { x: 1.02, y: .62, z: .12, n: 2, h: 2.15, w: .9, spread: [.1, .28, 1.55], delay: .42 },
+  { x: 0, y: .78, z: 2.02, n: 2, h: 2.4, w: 1.05, spread: [.85, .16, .38], delay: .78 },
+  { x: -.9, y: .2, z: -1.54, n: 1, h: 1.55, w: .75, spread: [.08, .06, .12], delay: .14 },
+  { x: .9, y: .2, z: -1.54, n: 1, h: 1.55, w: .75, spread: [.08, .06, .12], delay: .18 },
+  { x: -.9, y: .2, z: 1.58, n: 1, h: 1.35, w: .7, spread: [.08, .06, .12], delay: .9 },
+  { x: .9, y: .2, z: 1.58, n: 1, h: 1.35, w: .7, spread: [.08, .06, .12], delay: .94 },
+  { x: 0, y: 0, z: -.15, n: 3, h: 1.15, w: 1.6, spread: [1.5, .02, 2.5], delay: .08, base: true }
+];
+let failFi = 0;
+failZones.forEach(z => {
+  for (let i = 0; i < z.n; i++) {
+    addFailFlame(failFireGroup,
+      z.x + (Math.random() - .5) * z.spread[0],
+      z.y + (Math.random() - .5) * z.spread[1],
+      z.z + (Math.random() - .5) * z.spread[2], {
+        frame: failFi++, h: z.h * (.55 + Math.random() * .9), w: z.w * (.8 + Math.random() * .45),
+        delay: z.delay + Math.random() * .22, seed: Math.random() * 10,
+        f1: 8 + Math.random() * 8, f2: 1.8 + Math.random() * 1.6,
+        base: !!z.base, soft: !!z.soft, core: !z.base && !z.soft && Math.random() < .72, sway: .06 + Math.random() * .1
+      });
+  }
+});
+for (let i = 0; i < 3; i++) {
+  addFailFlame(hoodFire, (Math.random() - .5) * .85, .06 + Math.random() * .1, -.25 - Math.random() * .6, {
+    frame: failFi++, h: .85 + Math.random() * .45, w: .32 + Math.random() * .12,
+    delay: .08 + Math.random() * .2, seed: Math.random() * 10,
+    f1: 10 + Math.random() * 6, f2: 2.1, base: false, core: true, sway: .05
+  });
+}
+function addFailGlow(x, y, z, sc, delay) {
+  const s = makeFailSprite(glowTex, THREE.AdditiveBlending);
+  s.material.color.setHex(0xff5a14); s.material.opacity = .14;
+  s.position.set(x, y, z); s.userData = { s: sc, delay, seed: Math.random() * 8 };
+  failFireGroup.add(s); failGlows.push(s);
+}
+addFailGlow(0, 1.25, -1.65, 2.1, .08);
+addFailGlow(0, 1.7, .15, 2.4, .45);
+addFailGlow(0, 1.15, 1.85, 1.9, .75);
+addFailGlow(.15, .55, -.2, 2.6, .15);
+for (let i = 0; i < 24; i++) {
+  const s = makeFailSprite(failSmokeTex, THREE.NormalBlending);
+  s.userData = { age: Math.random() * 2.2, dur: 2.2 + Math.random() * 1.4, seed: Math.random() * 20, x0: (Math.random() - .5) * 1.5, z0: -1.8 + Math.random() * 3.8, y0: 1.65 + Math.random() * .55, drift: (Math.random() - .5) * .5, size: .9 + Math.random() * 1.15, spin: (Math.random() - .5) * .5 };
+  s.visible = false; failFireGroup.add(s); failSmokes.push(s);
+}
+for (let i = 0; i < 26; i++) {
+  const s = makeFailSprite(failEmberTex, THREE.AdditiveBlending);
+  s.userData = { age: Math.random(), dur: .01, seed: Math.random() * 20 };
+  s.renderOrder = 4; s.visible = false; failFireGroup.add(s); failEmbers.push(s);
+}
+const failLightA = new THREE.PointLight(0xff5a12, 0, 7.5, 1.5); failLightA.position.set(0, 1.15, -1.55); CAR.group.add(failLightA);
+const failLightB = new THREE.PointLight(0xff2a08, 0, 6.5, 1.7); failLightB.position.set(.1, 1.35, .85); CAR.group.add(failLightB);
+function setFailFire(on) {
+  failFireOn = on;
+  failFireGroup.visible = on;
+  hoodFire.visible = on;
+  flameSprites.forEach(s => s.visible = !on);
+  smokeSprites.forEach(s => s.visible = !on);
+  if (on) smokeGroup.visible = false;
+  else if (flameGroup.visible) smokeGroup.visible = true;
+  $('fireOverlay').classList.toggle('heat', on);
+  if (!on) {
+    fireLight.color.setHex(0xff7722);
+    fireLight.distance = 22;
+    failLightA.intensity = 0;
+    failLightB.intensity = 0;
+  }
+}
+function stepFailSprite(s, frames, hot, t, dt) {
+  const u = s.userData;
+  const grow = clamp((burnT - u.delay) / .55, 0, 1);
+  u.ft += dt * (hot ? 14 : 11);
+  const fr = (Math.floor(u.ft) + u.frame) % FAIL_FRAMES;
+  if (u._fr !== fr) { u._fr = fr; s.material.map = frames[fr]; }
+  const flick = .84 + .16 * Math.sin(t * u.f1 + u.seed);
+  const breath = .94 + .06 * Math.sin(t * u.f2 + u.seed * 2);
+  const h = Math.max(.01, u.h * grow * flick * breath);
+  const w = Math.max(.01, u.w * grow * (u.base ? 1.2 : 1) * (1.06 - .1 * flick));
+  const sway = Math.sin(t * u.f1 * .35 + u.seed) * u.sway * grow;
+  s.position.set(u.x + sway, u.y + h * .5, u.z);
+  s.scale.set(w, h, 1);
+  s.material.rotation = Math.sin(t * 1.7 + u.seed) * .1;
+  const op = hot ? .55 : (u.base ? .82 : u.soft ? .5 : .86);
+  s.material.opacity = op * Math.min(1, grow * 1.25) * (.82 + .18 * flick);
+  s.visible = grow > .03;
+}
+function updateFailFire(dt, t) {
+  const spread = clamp(burnT / 2.1, 0, 1);
+  failBodies.forEach(s => stepFailSprite(s, failBodyTex, false, t, dt));
+  failCores.forEach(s => stepFailSprite(s, failCoreTex, true, t, dt));
+  failGlows.forEach(s => {
+    const u = s.userData;
+    const g = clamp((burnT - u.delay) / .6, 0, 1);
+    const f = .82 + .18 * Math.sin(t * 14 + u.seed);
+    const sc = u.s * Math.max(g, .01) * f;
+    s.scale.set(sc, sc * .8, 1);
+    s.material.opacity = .13 * g * f;
+    s.visible = g > .04;
+  });
+  failSmokes.forEach(s => {
+    const u = s.userData;
+    u.age += dt;
+    if (u.age >= u.dur) {
+      u.age = 0; u.dur = 2.3 + Math.random() * 1.6;
+      u.x0 = (Math.random() - .5) * 1.6; u.z0 = -2.05 + Math.random() * 4.2;
+      u.y0 = 1.55 + Math.random() * .7; u.drift = (Math.random() - .5) * .6;
+      u.size = .85 + Math.random() * 1.25; u.spin = (Math.random() - .5) * .55;
+    }
+    const k = u.age / u.dur;
+    if (spread < .04) { s.visible = false; return; }
+    const sway = Math.sin(t * .75 + u.seed) * (.12 + k * .5) + u.drift * k;
+    s.position.set(u.x0 + sway, u.y0 + k * (4.6 + u.size * 1.8), u.z0 + Math.cos(t * .55 + u.seed) * k * .35);
+    const sc = (u.size * 1.35 + k * 3.8) * (.55 + .45 * spread);
+    s.scale.set(sc, sc * .8, 1);
+    s.material.rotation = u.spin * k;
+    const fade = Math.sin(Math.min(1, k) * Math.PI);
+    s.material.opacity = .5 * fade * (.4 + .6 * spread);
+    s.material.color.setRGB(.32 + k * .48, .26 + k * .5, .22 + k * .52);
+    s.visible = fade > .03;
+  });
+  failEmbers.forEach(s => {
+    const u = s.userData;
+    u.age += dt;
+    if (u.age >= u.dur) {
+      u.age = 0; u.dur = .65 + Math.random() * .95;
+      u.x = (Math.random() - .5) * 1.8; u.z = -2.2 + Math.random() * 4.5; u.y = .35 + Math.random() * 1.35;
+      u.vx = (Math.random() - .5) * .9; u.vy = 1.6 + Math.random() * 2.4; u.vz = (Math.random() - .5) * .9;
+      u.size = .09 + Math.random() * .12;
+    }
+    const k = u.age / u.dur;
+    if (spread < .08) { s.visible = false; return; }
+    s.position.set(u.x + u.vx * u.age, u.y + u.vy * u.age - .4 * u.age * u.age, u.z + u.vz * u.age);
+    const sc = u.size * (1 - k * .35);
+    s.scale.set(sc, sc, 1);
+    const hot = 1 - k;
+    s.material.color.setRGB(1, .32 + hot * .62, .04 + hot * .5);
+    s.material.opacity = (k < .08 ? k / .08 : 1 - (k - .08) / .92) * .95 * spread;
+    s.visible = s.material.opacity > .04;
+  });
+  const flick = .8 + Math.sin(t * 17.2) * .1 + Math.sin(t * 43) * .07 + Math.sin(t * 8.1) * .05;
+  const n = Math.max(.6, flick);
+  fireLight.intensity = (12 + spread * 14) * n;
+  fireLight.distance = 18;
+  fireLight.color.setRGB(1, .36 + Math.sin(t * 12.4) * .07, .05);
+  CAR.group.updateMatrixWorld(true);
+  fireLight.position.copy(new THREE.Vector3(Math.sin(t * 6.5) * .3, 1.4 + Math.sin(t * 9) * .12, -.4).applyMatrix4(CAR.group.matrixWorld));
+  failLightA.intensity = (4.5 + spread * 6) * (1.25 - n * .4);
+  failLightB.intensity = (3 + spread * 4.5) * n;
+  return spread;
+}
+const heatRT = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true });
+heatRT.texture.colorSpace = THREE.SRGBColorSpace;
+const heatScene = new THREE.Scene();
+const heatCam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+const heatMat = new THREE.ShaderMaterial({
+  uniforms: { tDiffuse: { value: null }, tNoise: { value: failNoiseTex }, time: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
+  fragmentShader: [
+    'precision highp float;',
+    'uniform sampler2D tDiffuse; uniform sampler2D tNoise; uniform float time;',
+    'varying vec2 vUv;',
+    'void main(){',
+    '  vec3 src = texture2D(tDiffuse, vUv).rgb;',
+    '  float hot = clamp(dot(src, vec3(.35,.5,.12)) - .22, 0., 1.);',
+    '  vec2 nUv = vec2(vUv.x * 1.7, vUv.y * 2.3 - time * .18);',
+    '  float n = texture2D(tNoise, nUv).r - .5;',
+    '  float n2 = texture2D(tNoise, nUv * 1.8 + vec2(.2, time * .07)).g - .5;',
+    '  float mask = smoothstep(.85, .12, length((vUv - vec2(.5, .48)) * vec2(1.15, 1.)));',
+    '  vec2 off = vec2(n * .7 + n2 * .3, n2 * .85 + n * .2) * (.007 + hot * .012) * mask;',
+    '  gl_FragColor = vec4(texture2D(tDiffuse, vUv + off).rgb, 1.);',
+    '}'
+  ].join('\n'),
+  depthTest: false, depthWrite: false, side: THREE.DoubleSide, toneMapped: false
+});
+const heatQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), heatMat);
+heatQuad.position.z = -1; heatQuad.frustumCulled = false; heatScene.add(heatQuad);
+function renderView() {
+  if (!failFireOn) { renderer.render(scene, camera); return; }
+  const w = renderer.domElement.width | 0, h = renderer.domElement.height | 0;
+  if (w < 2 || h < 2) { renderer.render(scene, camera); return; }
+  if (heatRT.width !== w || heatRT.height !== h) heatRT.setSize(w, h);
+  heatRT.texture.colorSpace = THREE.SRGBColorSpace;
+  renderer.setRenderTarget(heatRT);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  heatMat.uniforms.tDiffuse.value = heatRT.texture;
+  heatMat.uniforms.time.value = clock.elapsedTime;
+  const prevTone = renderer.toneMapping;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.render(heatScene, heatCam);
+  renderer.toneMapping = prevTone;
 }
 let burnT = 0, charMats = null;
 /* 幸存者：坐在马路牙子上打电话 */
@@ -1877,6 +2253,7 @@ function setChar(k) {
 }
 const fireLight = new THREE.PointLight(0xff7722, 0, 13, 1.6); scene.add(fireLight);
 function setFlames(on) {
+  setFailFire(false);
   flameGroup.visible = on; smokeGroup.visible = on; G.burning = on;
   if (on) {
     burnT = 0;
@@ -2005,6 +2382,7 @@ function fireGameOver(reason) {
   $('failVideo').classList.add('hide'); $('btnFailVideo').style.display = '';
   particleMode = 'fire';
   setFlames(true);
+  setFailFire(true);
   $('fireOverlay').style.opacity = .3;
   $('seqBox').style.display = 'none';
   $('fireEndText').textContent = reason + '车辆起火自燃，你失去了任何挽回生命的手段。';
@@ -2551,27 +2929,35 @@ function step(dt, t) {
   }
   if (flameGroup.visible) {
     burnT += dt;
-    let lit = 0;
-    flameSprites.forEach((s, i) => {
-      const grow = clamp((burnT - s.userData.delay) / .7, 0, 1);
-      if (grow > 0) lit++;
-      const fl = 1 + Math.sin(t * 23 + s.userData.seed * 7) * .22 + Math.random() * .12;
-      const sc = Math.max(.01, s.userData.base * grow * fl);
-      s.scale.set(sc, sc * 1.7, 1);
-    });
-    const spread = lit / flameSprites.length;
-    fireLight.intensity = (18 + spread * 30) + Math.sin(t * 41) * 7 + Math.random() * 6;
-    setChar(clamp(burnT / 3, 0, .92));
-    CAR.group.updateMatrixWorld(true);
-    smokeSprites.forEach(s => {
-      const k = (s.userData.ph + t * .16) % 1;
-      const p = new THREE.Vector3(s.userData.dx * (1 + k), 2.2 + k * 9, s.userData.dz).applyMatrix4(CAR.group.matrixWorld);
-      s.position.copy(p);
-      const sc = (2 + k * 7) * clamp(burnT / 1.5, 0, 1);
-      s.scale.set(sc, sc, 1);
-      s.material.opacity = .55 * (1 - k) * clamp(burnT / 1.5, 0, 1);
-    });
-    $('fireOverlay').style.opacity = Math.min(.55, .2 + spread * .4);
+    let spread;
+    if (failFireOn) {
+      spread = updateFailFire(dt, t);
+    } else {
+      let lit = 0;
+      flameSprites.forEach(s => {
+        const grow = clamp((burnT - s.userData.delay) / .7, 0, 1);
+        if (grow > 0) lit++;
+        const fl = 1 + Math.sin(t * 23 + s.userData.seed * 7) * .22 + Math.random() * .12;
+        const sc = Math.max(.01, s.userData.base * grow * fl);
+        s.scale.set(sc, sc * 1.7, 1);
+      });
+      spread = lit / flameSprites.length;
+      fireLight.intensity = (18 + spread * 30) + Math.sin(t * 41) * 7 + Math.random() * 6;
+      fireLight.color.setHex(0xff7722);
+      CAR.group.updateMatrixWorld(true);
+      smokeSprites.forEach(s => {
+        const k = (s.userData.ph + t * .16) % 1;
+        const p = new THREE.Vector3(s.userData.dx * (1 + k), 2.2 + k * 9, s.userData.dz).applyMatrix4(CAR.group.matrixWorld);
+        s.position.copy(p);
+        const sc = (2 + k * 7) * clamp(burnT / 1.5, 0, 1);
+        s.scale.set(sc, sc, 1);
+        s.material.opacity = .55 * (1 - k) * clamp(burnT / 1.5, 0, 1);
+      });
+    }
+    setChar(clamp(burnT / 3, 0, failFireOn ? .7 : .92));
+    $('fireOverlay').style.opacity = failFireOn
+      ? Math.min(.4, .1 + spread * .2 + Math.sin(t * 17) * .025)
+      : Math.min(.55, .2 + spread * .4);
   }
   updateParticles(dt, G.px + G.hx * 2.85, .8, G.pz + G.hz * 2.85);
 
@@ -2673,7 +3059,7 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05);
   step(dt, clock.elapsedTime);
-  renderer.render(scene, camera);
+  renderView();
 }
 
 animate();
