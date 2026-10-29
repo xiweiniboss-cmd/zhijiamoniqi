@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v52 -->
+<!-- zhijia v56 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1778,9 +1778,9 @@ pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
 const pMat = new THREE.PointsMaterial({ size: .5, vertexColors: true, transparent: true, opacity: .8, depthWrite: false });
 const points = new THREE.Points(pGeo, pMat); points.visible = false; points.frustumCulled = false; scene.add(points);
 const particles = Array.from({ length: P_COUNT }, () => ({ life: Math.random(), vx: 0, vy: 0, vz: 0, x: 0, y: -99, z: 0 }));
-let particleMode = 'off';
+let particleMode = 'off', failFireOn = false;
 function updateParticles(dt, ex, ey, ez) {
-  if (particleMode === 'off') { points.visible = false; return; }
+  if (particleMode === 'off' || failFireOn) { points.visible = false; return; }
   points.visible = true;
   const fire = particleMode === 'fire';
   pMat.blending = fire ? THREE.AdditiveBlending : THREE.NormalBlending;
@@ -1824,6 +1824,603 @@ for (let i = 0; i < 16; i++) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: .5, depthWrite: false }));
   s.userData.ph = i / 16; s.userData.dx = (Math.random() - .5) * 2.2; s.userData.dz = (Math.random() - .5) * 3.5;
   smokeGroup.add(s); smokeSprites.push(s);
+}
+/* 逃生失败结算专用火：引擎舱一根噪声体火（光线步进），不是宽贴图卡片。
+   整团共用一个闪烁相位。车窗和轮拱只是同一团火里更暗的部分。
+   逃生成功仍走上面的光晕精灵，不进这条路径。 */
+function hash2(ix, iy) {
+  let n = Math.imul(ix | 0, 374761393) + Math.imul(iy | 0, 668265263);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+}
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y) {
+  let v = 0, a = 0.5, f = 1, s = 0;
+  for (let i = 0; i < 4; i++) { v += a * vnoise(x * f, y * f); s += a; f *= 2.03; a *= 0.5; }
+  return v / s;
+}
+function paintSmokeTex() {
+  const w = 128, h = 128;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const img = g.createImageData(w, h), d = img.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const u = x / (w - 1), v = y / (h - 1);
+    const dx = u - .5, dy = v - .5, r = Math.sqrt(dx * dx + dy * dy) * 2;
+    const n = fbm(u * 3.1 + 1.4, v * 3.1 + 6.2);
+    const n2 = fbm(u * 6.2 + .4, v * 6.2 + 2);
+    let a = 1 - Math.min(1, Math.pow(r, 1.05) * (.75 + (1 - n) * .45));
+    if (a < 0) a = 0; else a = Math.pow(a, .75) * (.7 + .3 * n2);
+    const shade = .55 + .4 * n;
+    const i = (y * w + x) * 4;
+    d[i] = shade * 255; d[i + 1] = shade * 250; d[i + 2] = shade * 240; d[i + 3] = Math.min(1, a) * 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+function paintEmberTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,240,1)');
+  gr.addColorStop(.3, 'rgba(255,196,70,.95)');
+  gr.addColorStop(.62, 'rgba(255,90,10,.4)');
+  gr.addColorStop(1, 'rgba(255,40,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+function paintHeatNoise() {
+  const w = 128, h = 128;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const img = g.createImageData(w, h), d = img.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    d[i] = fbm(x * .07, y * .07) * 255;
+    d[i + 1] = fbm(x * .07 + 5.2, y * .07 + 1.7) * 255;
+    d[i + 2] = 128; d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return tex;
+}
+const failSmokeTex = paintSmokeTex();
+const failEmberTex = paintEmberTex();
+const failNoiseTex = paintHeatNoise();
+const failFireGroup = new THREE.Group(); failFireGroup.visible = false; failFireGroup.frustumCulled = false; CAR.group.add(failFireGroup);
+const hoodFire = new THREE.Group(); hoodFire.visible = false; hoodFire.frustumCulled = false; CAR.hoodPivot.add(hoodFire);
+const failFx = new THREE.Group(); failFx.visible = false; failFx.frustumCulled = false; scene.add(failFx);
+const uTime = { value: 0 }, uFlick = { value: 1 }, uSheet = { value: 0 }, uGain = { value: 0 };
+const volCam = new THREE.Vector3();
+const volInv = new THREE.Matrix4();
+const volPos = new THREE.Vector3(0, 1.85, 0.05);
+const volScale = new THREE.Vector3(3.1, 4.1, 7.4);
+const volMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime, uFlick, uGain, uSheet,
+    uCamLocal: { value: new THREE.Vector3() },
+    uPos: { value: volPos },
+    uScale: { value: volScale },
+    tDepth: { value: null },
+    uRes: { value: new THREE.Vector2(1, 1) },
+    uNear: { value: camera.near },
+    uFar: { value: camera.far },
+    uModelView: { value: new THREE.Matrix4() },
+    uProj: { value: new THREE.Matrix4() }
+  },
+  transparent: true,
+  depthTest: false,
+  depthWrite: false,
+  blending: THREE.NormalBlending,
+  side: THREE.FrontSide,
+  toneMapped: true,
+  vertexShader: [
+    'varying vec3 vLocal;',
+    'void main(){',
+    '  vLocal = position;',
+    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+    '}'
+  ].join('\n'),
+  fragmentShader: [
+    'precision highp float;',
+    'uniform float uTime, uFlick, uGain, uSheet, uNear, uFar;',
+    'uniform vec3 uCamLocal, uPos, uScale;',
+    'uniform mat4 uModelView, uProj;',
+    'uniform sampler2D tDepth;',
+    'uniform vec2 uRes;',
+    'varying vec3 vLocal;',
+    'float hash13(vec3 p){',
+    '  p = fract(p * 0.1031);',
+    '  p += dot(p, p.yzx + 33.33);',
+    '  return fract((p.x + p.y) * p.z);',
+    '}',
+    'float vnoise(vec3 p){',
+    '  vec3 i = floor(p);',
+    '  vec3 f = fract(p);',
+    '  f = f * f * (3.0 - 2.0 * f);',
+    '  float n000 = hash13(i);',
+    '  float n100 = hash13(i + vec3(1.0, 0.0, 0.0));',
+    '  float n010 = hash13(i + vec3(0.0, 1.0, 0.0));',
+    '  float n110 = hash13(i + vec3(1.0, 1.0, 0.0));',
+    '  float n001 = hash13(i + vec3(0.0, 0.0, 1.0));',
+    '  float n101 = hash13(i + vec3(1.0, 0.0, 1.0));',
+    '  float n011 = hash13(i + vec3(0.0, 1.0, 1.0));',
+    '  float n111 = hash13(i + vec3(1.0, 1.0, 1.0));',
+    '  return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),',
+    '             mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);',
+    '}',
+    'float fbm(vec3 p){',
+    '  float v = 0.0;',
+    '  v += 0.55 * vnoise(p);',
+    '  p = p * 2.04 + vec3(1.7, 9.2, 3.1);',
+    '  v += 0.30 * vnoise(p);',
+    '  p = p * 2.03 + vec3(4.2, 1.3, 8.1);',
+    '  v += 0.15 * vnoise(p);',
+    '  return v;',
+    '}',
+    'float unpackDepth(vec4 c){',
+    '  return dot(c, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0)) * (255.0/254.0);',
+    '}',
+    'float winDist(float depth){',
+    '  float z = depth * 2.0 - 1.0;',
+    '  return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));',
+    '}',
+    'float falloff(float inner, float outer, float d){',
+    '  return 1.0 - smoothstep(inner, outer, d);',
+    '}',
+    'void main(){',
+    '  vec3 ro = uCamLocal;',
+    '  vec3 rd = vLocal - ro;',
+    '  float rdLen = length(rd);',
+    '  if (rdLen < 0.0001) discard;',
+    '  rd /= rdLen;',
+    '  if (abs(rd.x) < 0.0001) rd.x = rd.x < 0.0 ? -0.0001 : 0.0001;',
+    '  if (abs(rd.y) < 0.0001) rd.y = rd.y < 0.0 ? -0.0001 : 0.0001;',
+    '  if (abs(rd.z) < 0.0001) rd.z = rd.z < 0.0 ? -0.0001 : 0.0001;',
+    '  rd = normalize(rd);',
+    '  vec3 invR = 1.0 / rd;',
+    '  vec3 tbot = (vec3(-0.5) - ro) * invR;',
+    '  vec3 ttop = (vec3(0.5) - ro) * invR;',
+    '  vec3 tminv = min(tbot, ttop);',
+    '  vec3 tmaxv = max(tbot, ttop);',
+    '  float tN = max(max(tminv.x, tminv.y), tminv.z);',
+    '  float tF = min(min(tmaxv.x, tmaxv.y), tmaxv.z);',
+    '  if (tF < 0.0 || tN > tF) discard;',
+    '  tN = max(tN, 0.0);',
+    '  float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);',
+    '  float stepsN = 22.0;',
+    '  float dt = (tF - tN) / stepsN;',
+    '  float t = tN + dt * jit;',
+    '  vec2 suv = gl_FragCoord.xy / uRes;',
+    '  float sceneWin = unpackDepth(texture2D(tDepth, suv));',
+    '  float sceneDist = winDist(sceneWin);',
+    '  vec3 col = vec3(0.0);',
+    '  float alpha = 0.0;',
+    '  for (int i = 0; i < 22; i++) {',
+    '    if (t > tF || alpha > 0.94) break;',
+    '    vec3 p = ro + rd * t;',
+    '    vec3 carP = uPos + p * uScale;',
+    '    vec4 clip = uProj * uModelView * vec4(p, 1.0);',
+    '    float sampleDist = winDist(clip.z / clip.w * 0.5 + 0.5);',
+    '    vec3 bc = carP - vec3(0.0, 0.78, 0.25);',
+    '    float inBody = 1.0 - smoothstep(0.0, 0.12, max(abs(bc.x) - 0.70, max(abs(bc.y) - 0.36, abs(bc.z) - 1.45)));',
+    '    float behind = sampleDist - sceneDist;',
+    '    if (sceneWin > 0.001 && behind > 0.05) {',
+    '      if (inBody > 0.45 || behind > 0.48) break;',
+    '    }',
+    '    vec3 f = carP - vec3(0.28, 0.9, -1.58);',
+    '    float h = f.y;',
+    '    vec2 xz = vec2(f.x - h * 0.18, f.z + h * 0.02);',
+    '    vec3 npos = vec3(xz.x * 2.2, h * 0.42 - uTime * 0.7, xz.y * 1.6);',
+    '    float n = fbm(npos);',
+    '    float n2 = vnoise(vec3(xz.x * 4.8 + 1.7, h * 1.3 - uTime * 1.25, xz.y * 4.8));',
+    '    float hh = clamp(h, 0.0, 2.6);',
+    '    vec2 c0 = vec2(0.06, -0.55) * min(hh, 1.35);',
+    '    vec2 c1 = vec2(0.16, 0.02) * hh;',
+    '    vec2 c2 = vec2(0.04, 0.62) * min(hh, 1.15);',
+    '    float rad = mix(0.5, 0.08, smoothstep(0.1, 2.5, h));',
+    '    float d0 = falloff(rad * 0.25, rad * 1.05, length(xz - c0));',
+    '    float d1 = falloff(rad * 0.2, rad * 0.95, length(xz - c1));',
+    '    float d2 = falloff(rad * 0.22, rad, length(xz - c2));',
+    '    float r0 = 1.05 + 0.45 * n2;',
+    '    float r1 = 2.05 + 0.85 * n;',
+    '    float r2 = 1.45 + 0.4 * n2;',
+    '    d0 *= 1.0 - smoothstep(r0 - 0.16, r0 + 0.02, h);',
+    '    d1 *= 1.0 - smoothstep(r1 - 0.2, r1 + 0.04, h);',
+    '    d2 *= 1.0 - smoothstep(r2 - 0.14, r2 + 0.02, h);',
+    '    float dens = max(d0, max(d1, d2 * 0.9));',
+    '    float foot = falloff(0.1, 0.62, length(xz * vec2(1.0, 0.75))) * (1.0 - smoothstep(0.0, 0.42, h));',
+    '    dens = max(dens, foot);',
+    '    dens *= smoothstep(-0.02, 0.08, h);',
+    '    float edgeN = smoothstep(0.42, 0.7, n2);',
+    '    dens *= mix(1.0, edgeN, smoothstep(0.35, 0.9, h));',
+    '    float zFront = mix(-1.75, 3.4, clamp(uSheet, 0.0, 1.0));',
+    '    float arrived = 1.0 - smoothstep(zFront - 0.02, zFront + 0.38, carP.z);',
+    '    float age = clamp((zFront - carP.z) / 0.55, 0.0, 1.0);',
+    '    float bn = fbm(vec3(carP.x * 1.25, carP.y * 0.48 - uTime * 0.7, carP.z * 0.62));',
+    '    float body = 0.0;',
+    '    float climbH = carP.y - 1.02;',
+    '    vec2 hxz = vec2(carP.x - climbH * 0.14, (carP.z + 1.48) * 0.75);',
+    '    float hReach = mix(0.22, 1.4, clamp(uSheet * 2.6, 0.0, 1.0)) * (0.6 + 0.55 * bn);',
+    '    float hRad = mix(0.58, 0.15, smoothstep(0.04, 1.15, climbH));',
+    '    float climb = falloff(hRad * 0.2, hRad, length(hxz));',
+    '    climb *= smoothstep(-0.03, 0.1, climbH) * (1.0 - smoothstep(hReach - 0.14, hReach + 0.04, climbH));',
+    '    climb *= mix(smoothstep(0.4, 0.66, bn), 1.0, 1.0 - smoothstep(0.1, 0.5, climbH));',
+    '    body = max(body, climb);',
+    '    float ru = clamp((carP.z + 0.35) / 0.85, 0.0, 3.0);',
+    '    float rk = floor(ru + 0.5);',
+    '    float rh = carP.y - 1.8;',
+    '    vec2 rxz = vec2((carP.x - rh * 0.12) * 0.9, (carP.z - (-0.35 + rk * 0.85)) * 0.58);',
+    '    float rReach = (1.15 + 0.4 * sin(rk * 2.1 + 0.4)) * age * (0.7 + 0.45 * bn);',
+    '    float rRad = mix(0.78, 0.16, smoothstep(0.0, 1.35, rh));',
+    '    float roof = falloff(rRad * 0.18, rRad, length(rxz));',
+    '    roof *= smoothstep(-0.05, 0.1, rh) * (1.0 - smoothstep(rReach - 0.12, rReach + 0.03, rh));',
+    '    roof *= mix(smoothstep(0.38, 0.64, bn), 1.0, 1.0 - smoothstep(0.06, 0.4, rh));',
+    '    body = max(body, roof);',
+    '    float rib = falloff(0.0, 0.62, abs(carP.x)) * falloff(0.0, 0.2, abs(carP.y - 1.9));',
+    '    rib *= smoothstep(-0.85, -0.25, carP.z) * (1.0 - smoothstep(2.15, 2.5, carP.z));',
+    '    rib *= smoothstep(0.32, 0.58, bn);',
+    '    body = max(body, rib * 0.75);',
+    '    float su = clamp((carP.z + 1.2) / 1.05, 0.0, 3.0);',
+    '    float sk = floor(su + 0.5);',
+    '    float sh = carP.y - 0.52;',
+    '    float sReach = (1.45 + 0.35 * sin(sk * 1.9 + 0.6)) * age * (0.72 + 0.4 * bn);',
+    '    float sRad = mix(0.78, 0.18, smoothstep(0.0, 1.55, sh));',
+    '    float side = falloff(sRad * 0.25, sRad * 1.15, length(vec2(abs(abs(carP.x) - 1.05) * 0.85, (carP.z - (-1.2 + sk * 1.05)) * 0.5)));',
+    '    side *= smoothstep(0.0, 0.12, sh) * (1.0 - smoothstep(sReach - 0.16, sReach + 0.05, sh));',
+    '    side *= mix(smoothstep(0.3, 0.55, bn), 0.9, 1.0 - smoothstep(0.05, 0.7, sh));',
+    '    body = max(body, side * 0.92);',
+    '    float th = carP.y - 0.62;',
+    '    float tReach = age * (0.7 + 0.45 * bn);',
+    '    float tRad = mix(0.62, 0.16, smoothstep(0.0, 1.15, th));',
+    '    float tail = falloff(tRad * 0.22, tRad, length(vec2((abs(carP.x) - 0.42) * 0.75, (carP.z - 2.28) * 1.15)));',
+    '    tail *= smoothstep(-0.02, 0.12, th) * (1.0 - smoothstep(tReach * 1.2 - 0.12, tReach * 1.2 + 0.04, th));',
+    '    tail *= mix(smoothstep(0.4, 0.66, bn), 1.0, 1.0 - smoothstep(0.08, 0.4, th));',
+    '    body = max(body, tail * 0.9);',
+    '    dens = max(dens, body * arrived);',
+    '    vec3 w = carP - vec3(0.35, 1.42, -0.85);',
+    '    float wDens = falloff(0.06, 0.42, length(vec2(w.x * 0.9, w.z * 0.7)));',
+    '    wDens *= 1.0 - smoothstep(0.0, 0.7, w.y);',
+    '    wDens *= smoothstep(-0.15, 0.05, w.y);',
+    '    wDens *= arrived;',
+    '    dens = max(dens, wDens * 0.5);',
+    '    float puff = 0.0;',
+    '    vec3 dL = carP - vec3(-1.12, 0.55, -1.53);',
+    '    puff = max(puff, falloff(0.08, 0.55, length(dL.xz)) * (1.0 - smoothstep(0.0, 0.95, dL.y)) * smoothstep(-0.2, 0.08, dL.y));',
+    '    vec3 dR = carP - vec3(1.12, 0.55, -1.53);',
+    '    puff = max(puff, falloff(0.08, 0.55, length(dR.xz)) * (1.0 - smoothstep(0.0, 0.95, dR.y)) * smoothstep(-0.2, 0.08, dR.y));',
+    '    dens = max(dens, puff * 0.85);',
+    '    puff = 0.0;',
+    '    vec3 dLr = carP - vec3(-1.12, 0.55, 1.56);',
+    '    puff = max(puff, falloff(0.08, 0.52, length(dLr.xz)) * (1.0 - smoothstep(0.0, 0.9, dLr.y)) * smoothstep(-0.2, 0.08, dLr.y));',
+    '    vec3 dRr = carP - vec3(1.12, 0.55, 1.56);',
+    '    puff = max(puff, falloff(0.08, 0.52, length(dRr.xz)) * (1.0 - smoothstep(0.0, 0.9, dRr.y)) * smoothstep(-0.2, 0.08, dRr.y));',
+    '    dens = max(dens, puff * 0.7 * arrived);',
+    '    dens *= 1.0 - inBody;',
+    '    float heart = max(falloff(0.0, rad * 0.5, length(xz - c1)), falloff(0.0, rad * 0.4, length(xz - c0)) * 0.65);',
+    '    heart *= 1.0 - smoothstep(0.2, r1, h);',
+    '    float heat = clamp(dens * uFlick, 0.0, 1.0);',
+    '    float c = clamp(heat * 0.78 + heart * uFlick * 0.9, 0.0, 1.0);',
+    '    vec3 fire = mix(vec3(0.42, 0.02, 0.0), vec3(1.0, 0.26, 0.0), smoothstep(0.04, 0.22, c));',
+    '    fire = mix(fire, vec3(1.0, 0.58, 0.04), smoothstep(0.18, 0.42, c));',
+    '    fire = mix(fire, vec3(1.0, 0.86, 0.28), smoothstep(0.38, 0.66, c));',
+    '    fire = mix(fire, vec3(1.0, 0.97, 0.86), smoothstep(0.6, 0.88, c) * heart);',
+    '    float a = smoothstep(0.22, 0.62, dens) * uGain * uFlick * 0.72;',
+    '    a = clamp(a, 0.0, 0.7);',
+    '    col += fire * a * (1.0 - alpha);',
+    '    alpha += a * (1.0 - alpha);',
+    '    t += dt;',
+    '  }',
+    '  if (alpha < 0.03) discard;',
+    '  gl_FragColor = vec4(col / max(alpha, 0.0001), alpha);',
+    '}'
+  ].join('\n')
+});
+const failVol = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), volMat);
+failVol.position.copy(volPos);
+failVol.scale.copy(volScale);
+failVol.frustumCulled = false;
+failVol.visible = false;
+failVol.renderOrder = 2;
+failFireGroup.add(failVol);
+failVol.onBeforeRender = function (_r, _s, cam) {
+  volInv.copy(failVol.matrixWorld).invert();
+  volCam.copy(cam.position).applyMatrix4(volInv);
+  volMat.uniforms.uCamLocal.value.copy(volCam);
+  volMat.uniforms.uModelView.value.multiplyMatrices(cam.matrixWorldInverse, failVol.matrixWorld);
+  volMat.uniforms.uProj.value.copy(cam.projectionMatrix);
+};
+const groundMat = new THREE.ShaderMaterial({
+  uniforms: { uTime, uFlick, uSheet },
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  blending: THREE.NormalBlending,
+  toneMapped: true,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
+  vertexShader: [
+    'varying vec2 vUv;',
+    'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }'
+  ].join('\n'),
+  fragmentShader: [
+    'precision highp float;',
+    'varying vec2 vUv;',
+    'uniform float uTime, uFlick, uSheet;',
+    'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+    'float n2(vec2 p){',
+    '  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i), b = hash(i + vec2(1.0, 0.0)), c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+    '}',
+    'void main(){',
+    '  float reachV = mix(0.62, 0.12, clamp(uSheet, 0.0, 1.0));',
+    '  float reached = smoothstep(reachV - 0.03, reachV + 0.14, vUv.y);',
+    '  float lateral = abs(vUv.x - 0.5);',
+    '  float lane = (1.0 - smoothstep(0.05, 0.36, lateral)) * reached;',
+    '  float core = (1.0 - smoothstep(0.0, 0.11, abs(vUv.y - 0.70))) * (1.0 - smoothstep(0.0, 0.16, lateral));',
+    '  float hotV = mix(0.72, 0.22, clamp(uSheet, 0.0, 1.0));',
+    '  float follow = (1.0 - smoothstep(0.0, 0.14, abs(vUv.y - hotV))) * (1.0 - smoothstep(0.0, 0.2, lateral));',
+    '  float flickN = n2(vUv * 5.5 + vec2(uTime * 0.45, -uTime * 0.2));',
+    '  float pulse = 0.22 + 0.78 * uFlick;',
+    '  float a = (lane * 0.8 + core * 0.9 + follow * 0.55) * pulse * (0.72 + 0.28 * flickN);',
+    '  if (a < 0.025) discard;',
+    '  vec3 col = mix(vec3(0.5, 0.06, 0.0), vec3(1.0, 0.42, 0.05), clamp(uFlick, 0.0, 1.0));',
+    '  col = mix(col, vec3(1.0, 0.68, 0.22), core * uFlick);',
+    '  gl_FragColor = vec4(col, clamp(a, 0.0, 0.5));',
+    '}'
+  ].join('\n')
+});
+const failGround = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 8.2), groundMat);
+failGround.rotation.x = -Math.PI / 2;
+failGround.position.set(0, 0.045, -0.15);
+failGround.frustumCulled = false;
+failGround.renderOrder = 1;
+failFireGroup.add(failGround);
+function makeFailSprite(map, blending) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, depthTest: true, blending }));
+  s.frustumCulled = false;
+  return s;
+}
+const failSmokes = [], failEmbers = [];
+for (let i = 0; i < 16; i++) {
+  const s = makeFailSprite(failSmokeTex, THREE.NormalBlending);
+  s.material.depthTest = false;
+  s.userData = { age: Math.random() * 2.2, dur: 2.2, seed: Math.random() * 20 };
+  s.renderOrder = 5;
+  s.visible = false;
+  failFx.add(s); failSmokes.push(s);
+}
+for (let i = 0; i < 12; i++) {
+  const s = makeFailSprite(failEmberTex, THREE.AdditiveBlending);
+  s.userData = { age: Math.random(), dur: .01, seed: Math.random() * 20 };
+  s.renderOrder = 7;
+  s.visible = false;
+  failFx.add(s); failEmbers.push(s);
+}
+const failLightA = new THREE.PointLight(0xff5c14, 0, 12, 1.6); failLightA.position.set(0, 1.2, -2.05); CAR.group.add(failLightA);
+const failLightB = new THREE.PointLight(0xff3a0c, 0, 8, 1.6); failLightB.position.set(0, 1.4, -0.35); CAR.group.add(failLightB);
+const _failWorld = new THREE.Vector3();
+const _failNdc = new THREE.Vector3();
+function setFailFire(on) {
+  failFireOn = on;
+  failFireGroup.visible = on;
+  hoodFire.visible = on;
+  flameSprites.forEach(s => s.visible = !on);
+  smokeSprites.forEach(s => s.visible = !on);
+  if (on) smokeGroup.visible = false;
+  else if (flameGroup.visible) smokeGroup.visible = true;
+  $('fireOverlay').classList.remove('heat');
+  if (!on) {
+    fireLight.color.setHex(0xff7722);
+    fireLight.distance = 22;
+    failLightA.intensity = 0;
+    failLightB.intensity = 0;
+    failVol.visible = false;
+    failFx.visible = false;
+  }
+}
+function updateFailFire(dt, t) {
+  /* 牌出来前后先停在引擎舱，再顺着车身蔓延到车尾 */
+  const spread = clamp((burnT - 2.4) / 3.6, 0, 1);
+  const flick = 0.84 + Math.sin(t * 9.5) * 0.08 + Math.sin(t * 3.1) * 0.05;
+  uTime.value = t;
+  uFlick.value = flick;
+  uGain.value = clamp(burnT / 0.55, 0, 1);
+  uSheet.value = spread;
+  CAR.group.updateMatrixWorld(true);
+  failSmokes.forEach(s => {
+    const u = s.userData;
+    u.age += dt;
+    if (u.age >= u.dur) {
+      u.age = 0;
+      u.dur = 1.9 + Math.random() * 1.2;
+      const zFar = -1.55 + spread * 3.9;
+      u.x0 = (Math.random() - .5) * (.4 + spread * 1.05);
+      u.z0 = -1.7 + Math.random() * (zFar + 1.7);
+      u.y0 = 2.15 + Math.random() * (.35 + spread * .45);
+      u.size = .9 + Math.random() * .85;
+      u.spin = (Math.random() - .5) * .4;
+    }
+    const k = u.age / u.dur;
+    if (spread < .06) { s.visible = false; return; }
+    _failWorld.set(
+      u.x0 + k * 1.35 + Math.sin(t * .55 + u.seed) * k * .35,
+      u.y0 + k * (4.4 + u.size),
+      u.z0 + Math.sin(t * .35 + u.seed) * k * .85
+    ).applyMatrix4(CAR.group.matrixWorld);
+    s.position.copy(_failWorld);
+    const sc = Math.min(4.2, (.75 + k * 2.4) * u.size);
+    s.scale.set(sc * (1.05 + k * .8), sc * (1.15 + k * .25), 1);
+    s.material.rotation = u.spin * k;
+    s.material.blending = THREE.NormalBlending;
+    const fade = Math.sin(Math.min(1, k) * Math.PI);
+    const dark = .07 + k * .5;
+    s.material.color.setRGB(dark, dark * .98, dark * .95);
+    s.material.opacity = fade * .86 * (.7 + .3 * spread);
+    s.visible = s.material.opacity > .03;
+  });
+  failEmbers.forEach(s => {
+    const u = s.userData;
+    u.age += dt;
+    if (u.age >= u.dur) {
+      u.age = 0;
+      u.dur = .7 + Math.random() * .85;
+      const zFarE = -1.5 + spread * 3.7;
+      u.x = (Math.random() - .5) * (.45 + spread * 1.15);
+      u.z = -1.65 + Math.random() * (zFarE + 1.65);
+      u.y = 1.85 + Math.random() * (.5 + spread * .7);
+      u.vx = .25 + Math.random() * .5;
+      u.vy = 1.5 + Math.random() * 1.6;
+      u.vz = (Math.random() - .5) * .3;
+      u.size = .1 + Math.random() * .08;
+    }
+    const k = u.age / u.dur;
+    if (spread < .1) { s.visible = false; return; }
+    _failWorld.set(u.x + u.vx * u.age, u.y + u.vy * u.age - .35 * u.age * u.age, u.z + u.vz * u.age).applyMatrix4(CAR.group.matrixWorld);
+    s.position.copy(_failWorld);
+    const sc = u.size * (1 - k * .3);
+    s.scale.set(sc, sc, 1);
+    const hot = 1 - k;
+    s.material.color.setRGB(1, .28 + hot * .6, .03 + hot * .35);
+    s.material.opacity = (k < .08 ? k / .08 : 1 - (k - .08) / .92) * .9 * spread;
+    s.visible = s.material.opacity > .04;
+  });
+  fireLight.intensity = (5 + spread * 7) * flick;
+  fireLight.distance = 10 + spread * 6;
+  fireLight.color.setRGB(1, .34 + flick * .12, .04);
+  fireLight.position.copy(_failWorld.set(0, 1.3, -1.95).applyMatrix4(CAR.group.matrixWorld));
+  failLightA.intensity = (5 + spread * 7) * flick;
+  failLightA.color.setRGB(1, .32 + flick * .1, .03);
+  failLightB.position.set(.35, 1.45, -0.4 + spread * 2.3);
+  failLightB.distance = 7 + spread * 4;
+  failLightB.intensity = (1.4 + spread * 5.5) * flick;
+  return spread;
+}
+const sceneRT = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true, depthTexture: new THREE.DepthTexture() });
+sceneRT.texture.colorSpace = THREE.SRGBColorSpace;
+sceneRT.depthTexture.format = THREE.DepthFormat;
+sceneRT.depthTexture.type = THREE.UnsignedShortType;
+sceneRT.depthTexture.magFilter = THREE.NearestFilter;
+sceneRT.depthTexture.minFilter = THREE.NearestFilter;
+const depthCopyRT = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: false, stencilBuffer: false });
+depthCopyRT.texture.colorSpace = THREE.LinearSRGBColorSpace;
+depthCopyRT.texture.minFilter = THREE.NearestFilter;
+depthCopyRT.texture.magFilter = THREE.NearestFilter;
+depthCopyRT.texture.generateMipmaps = false;
+const depthCopyMat = new THREE.ShaderMaterial({
+  uniforms: { tDepth: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
+  fragmentShader: [
+    'precision highp float; uniform sampler2D tDepth; varying vec2 vUv;',
+    'vec4 packDepth(float v){',
+    '  vec4 r = vec4(1.0, 255.0, 65025.0, 16581375.0) * v;',
+    '  r = fract(r);',
+    '  r -= r.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);',
+    '  return r * (254.0/255.0);',
+    '}',
+    'void main(){ gl_FragColor = packDepth(texture2D(tDepth, vUv).r); }'
+  ].join('\n'),
+  depthTest: false, depthWrite: false, toneMapped: false
+});
+const depthCopyQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), depthCopyMat);
+depthCopyQuad.position.z = -1; depthCopyQuad.frustumCulled = false;
+const depthCopyScene = new THREE.Scene(); depthCopyScene.add(depthCopyQuad);
+const heatCam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+const heatScene = new THREE.Scene();
+const heatMat = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse: { value: null },
+    tNoise: { value: failNoiseTex },
+    time: { value: 0 },
+    uFire: { value: new THREE.Vector2(.5, .45) }
+  },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
+  fragmentShader: [
+    'precision highp float;',
+    'uniform sampler2D tDiffuse; uniform sampler2D tNoise; uniform float time; uniform vec2 uFire;',
+    'varying vec2 vUv;',
+    'void main(){',
+    '  vec3 src = texture2D(tDiffuse, vUv).rgb;',
+    '  float hot = clamp(dot(src, vec3(.22, .58, .12)) - .16, 0., 1.);',
+    '  vec2 nUv = vec2(vUv.x * 2.2, vUv.y * 2.6 - time * .22);',
+    '  float n = texture2D(tNoise, nUv).r - .5;',
+    '  float n2 = texture2D(tNoise, nUv * 1.7 + vec2(.17, time * .08)).g - .5;',
+    '  vec2 d = vUv - uFire;',
+    '  d.x *= 1.15; d.y *= .72;',
+    '  float region = 1.0 - smoothstep(.04, .22, length(d));',
+    '  float mask = region * (.2 + .8 * hot);',
+    '  vec2 off = vec2(n * .7 + n2 * .3, n2 * .85 + n * .15) * (.0035 + hot * .007) * mask;',
+    '  gl_FragColor = vec4(texture2D(tDiffuse, vUv + off).rgb, 1.);',
+    '}'
+  ].join('\n'),
+  depthTest: false, depthWrite: false, side: THREE.DoubleSide, toneMapped: false
+});
+const heatQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), heatMat);
+heatQuad.position.z = -1; heatQuad.frustumCulled = false; heatScene.add(heatQuad);
+function fitFailTargets(w, h) {
+  if (sceneRT.width === w && sceneRT.height === h) return;
+  sceneRT.setSize(w, h);
+  depthCopyRT.setSize(w, h);
+  sceneRT.texture.colorSpace = THREE.SRGBColorSpace;
+  depthCopyRT.texture.colorSpace = THREE.LinearSRGBColorSpace;
+}
+function renderView() {
+  if (!failFireOn) { renderer.render(scene, camera); return; }
+  const w = renderer.domElement.width | 0, h = renderer.domElement.height | 0;
+  if (w < 2 || h < 2) { renderer.render(scene, camera); return; }
+  fitFailTargets(w, h);
+  failVol.visible = false;
+  failFx.visible = true;
+  renderer.setRenderTarget(sceneRT);
+  renderer.render(scene, camera);
+  const prevTone = renderer.toneMapping;
+  renderer.toneMapping = THREE.NoToneMapping;
+  depthCopyMat.uniforms.tDepth.value = sceneRT.depthTexture;
+  renderer.setRenderTarget(depthCopyRT);
+  renderer.render(depthCopyScene, heatCam);
+  renderer.toneMapping = prevTone;
+  volMat.uniforms.tDepth.value = depthCopyRT.texture;
+  volMat.uniforms.uRes.value.set(w, h);
+  volMat.uniforms.uNear.value = camera.near;
+  volMat.uniforms.uFar.value = camera.far;
+  failVol.visible = true;
+  const prevAuto = renderer.autoClear;
+  renderer.autoClear = false;
+  renderer.setRenderTarget(sceneRT);
+  renderer.render(failVol, camera);
+  failVol.visible = false;
+  failFx.visible = true;
+  renderer.setRenderTarget(sceneRT);
+  renderer.render(failFx, camera);
+  failFx.visible = false;
+  renderer.autoClear = prevAuto;
+  camera.updateMatrixWorld();
+  _failWorld.set(0, 2.15, -1.8).applyMatrix4(CAR.group.matrixWorld);
+  _failNdc.copy(_failWorld).project(camera);
+  if (_failNdc.z < 1) heatMat.uniforms.uFire.value.set(_failNdc.x * .5 + .5, _failNdc.y * .5 + .5);
+  else heatMat.uniforms.uFire.value.set(-2, -2);
+  renderer.setRenderTarget(null);
+  heatMat.uniforms.tDiffuse.value = sceneRT.texture;
+  heatMat.uniforms.time.value = clock.elapsedTime;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.render(heatScene, heatCam);
+  renderer.toneMapping = prevTone;
 }
 let burnT = 0, charMats = null;
 /* 幸存者：坐在马路牙子上打电话 */
@@ -1877,6 +2474,7 @@ function setChar(k) {
 }
 const fireLight = new THREE.PointLight(0xff7722, 0, 13, 1.6); scene.add(fireLight);
 function setFlames(on) {
+  setFailFire(false);
   flameGroup.visible = on; smokeGroup.visible = on; G.burning = on;
   if (on) {
     burnT = 0;
@@ -2005,7 +2603,8 @@ function fireGameOver(reason) {
   $('failVideo').classList.add('hide'); $('btnFailVideo').style.display = '';
   particleMode = 'fire';
   setFlames(true);
-  $('fireOverlay').style.opacity = .3;
+  setFailFire(true);
+  $('fireOverlay').style.opacity = .04;
   $('seqBox').style.display = 'none';
   $('fireEndText').textContent = reason + '车辆起火自燃，你失去了任何挽回生命的手段。';
   $('banner').textContent = '🔥 车辆起火自燃！';
@@ -2551,27 +3150,35 @@ function step(dt, t) {
   }
   if (flameGroup.visible) {
     burnT += dt;
-    let lit = 0;
-    flameSprites.forEach((s, i) => {
-      const grow = clamp((burnT - s.userData.delay) / .7, 0, 1);
-      if (grow > 0) lit++;
-      const fl = 1 + Math.sin(t * 23 + s.userData.seed * 7) * .22 + Math.random() * .12;
-      const sc = Math.max(.01, s.userData.base * grow * fl);
-      s.scale.set(sc, sc * 1.7, 1);
-    });
-    const spread = lit / flameSprites.length;
-    fireLight.intensity = (18 + spread * 30) + Math.sin(t * 41) * 7 + Math.random() * 6;
-    setChar(clamp(burnT / 3, 0, .92));
-    CAR.group.updateMatrixWorld(true);
-    smokeSprites.forEach(s => {
-      const k = (s.userData.ph + t * .16) % 1;
-      const p = new THREE.Vector3(s.userData.dx * (1 + k), 2.2 + k * 9, s.userData.dz).applyMatrix4(CAR.group.matrixWorld);
-      s.position.copy(p);
-      const sc = (2 + k * 7) * clamp(burnT / 1.5, 0, 1);
-      s.scale.set(sc, sc, 1);
-      s.material.opacity = .55 * (1 - k) * clamp(burnT / 1.5, 0, 1);
-    });
-    $('fireOverlay').style.opacity = Math.min(.55, .2 + spread * .4);
+    let spread;
+    if (failFireOn) {
+      spread = updateFailFire(dt, t);
+    } else {
+      let lit = 0;
+      flameSprites.forEach(s => {
+        const grow = clamp((burnT - s.userData.delay) / .7, 0, 1);
+        if (grow > 0) lit++;
+        const fl = 1 + Math.sin(t * 23 + s.userData.seed * 7) * .22 + Math.random() * .12;
+        const sc = Math.max(.01, s.userData.base * grow * fl);
+        s.scale.set(sc, sc * 1.7, 1);
+      });
+      spread = lit / flameSprites.length;
+      fireLight.intensity = (18 + spread * 30) + Math.sin(t * 41) * 7 + Math.random() * 6;
+      fireLight.color.setHex(0xff7722);
+      CAR.group.updateMatrixWorld(true);
+      smokeSprites.forEach(s => {
+        const k = (s.userData.ph + t * .16) % 1;
+        const p = new THREE.Vector3(s.userData.dx * (1 + k), 2.2 + k * 9, s.userData.dz).applyMatrix4(CAR.group.matrixWorld);
+        s.position.copy(p);
+        const sc = (2 + k * 7) * clamp(burnT / 1.5, 0, 1);
+        s.scale.set(sc, sc, 1);
+        s.material.opacity = .55 * (1 - k) * clamp(burnT / 1.5, 0, 1);
+      });
+    }
+    setChar(clamp(burnT / 3, 0, failFireOn ? .7 : .92));
+    $('fireOverlay').style.opacity = failFireOn
+      ? .03 + spread * .03
+      : Math.min(.55, .2 + spread * .4);
   }
   updateParticles(dt, G.px + G.hx * 2.85, .8, G.pz + G.hz * 2.85);
 
@@ -2673,7 +3280,7 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05);
   step(dt, clock.elapsedTime);
-  renderer.render(scene, camera);
+  renderView();
 }
 
 animate();
