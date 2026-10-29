@@ -1877,29 +1877,15 @@ const CORE_RAMP = [
 ];
 function smooth01(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
 function flameHeat(u, v, seed) {
+  /* 一整团：左右几乎一样亮，只在外缘和起伏的顶边变暗，避免中间亮成几条火柱 */
   const rise = 1 - v;
-  const n1 = fbm(u * 2.3 + seed, rise * 3.1 + seed);
-  const n2 = fbm(u * 4.8 + seed + 1.7, rise * 5.6 + 2.4);
-  const lobes = [
-    { c: .34, w: .24, p: .92 },
-    { c: .66, w: .2, p: 1 },
-    { c: .5, w: .16, p: .78 }
-  ];
-  let heat = 0;
-  for (let i = 0; i < lobes.length; i++) {
-    const lobe = lobes[i];
-    const curl = (i === 1 ? n1 : n2) - .5;
-    const cx = lobe.c + curl * (.1 + rise * .22);
-    const width = (.05 + lobe.w * Math.pow(v, .48)) * (.8 + .35 * n1);
-    const body = smooth01(1 - Math.abs(u - cx) / Math.max(.025, width));
-    const shred = body > .45 ? 1 : .42 + .58 * n2;
-    const vert = Math.pow(v, .1 + (1 - lobe.p) * .25) * (v > .98 ? (1 - v) / .02 : 1);
-    heat = Math.max(heat, body * vert * shred * lobe.p);
-    const core = Math.exp(-Math.pow((u - cx) / Math.max(.02, width * .36), 2)) * Math.pow(v, .28);
-    heat = Math.min(1, heat + core * .6 * lobe.p);
-  }
-  const base = smooth01(1 - Math.abs(u - .5) / (.4 + .1 * (n1 - .5))) * smooth01(Math.min(1, v / .42));
-  return Math.min(1, Math.max(heat, base * .9 * Math.pow(v, .15)));
+  const n1 = fbm(u * 2.4 + seed, rise * 1.5 + seed);
+  const n2 = fbm(u * 5.1 + seed + 2.8, rise * 2.6 + 3);
+  const top = .02 + n1 * .48 * Math.pow(rise, .4);
+  const crown = smooth01((v - top) / .18);
+  const side = smooth01((.5 - Math.abs(u - .5)) / .09);
+  const foot = smooth01(Math.min(1, v / .05));
+  return side * crown * foot * (.62 + .16 * n2);
 }
 function paintFlame(w, h, seed, hot) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1919,7 +1905,7 @@ function paintFlame(w, h, seed, hot) {
   g.putImageData(img, 0, 0);
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const og = out.getContext('2d');
-  og.filter = 'blur(1.15px)'; og.drawImage(c, 0, 0);
+  og.filter = 'blur(1.6px)'; og.drawImage(c, 0, 0);
   const tex = new THREE.CanvasTexture(out);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
@@ -1980,8 +1966,8 @@ function paintHeatNoise() {
 }
 const failBodyTex = [], failCoreTex = [];
 for (let i = 0; i < FAIL_FRAMES; i++) {
-  failBodyTex.push(paintFlame(80, 168, i * 1.51 + .4, false));
-  failCoreTex.push(paintFlame(56, 144, i * 1.51 + 3.3, true));
+  failBodyTex.push(paintFlame(128, 160, i * 1.51 + .4, false));
+  failCoreTex.push(paintFlame(96, 140, i * 1.51 + 3.3, true));
 }
 const failSmokeTex = paintSmokeTex();
 const failEmberTex = paintEmberTex();
@@ -1997,48 +1983,29 @@ function makeFailSprite(map, blending) {
 function addFailFlame(parent, x, y, z, opt) {
   opt.x = x; opt.y = y; opt.z = z; opt.ft = Math.random() * 8;
   const s = makeFailSprite(failBodyTex[opt.frame % FAIL_FRAMES], THREE.NormalBlending);
-  s.position.set(x, y, z); s.userData = opt; s.renderOrder = opt.soft || opt.base ? 1 : 2; parent.add(s); failBodies.push(s);
+  s.material.depthTest = false;
+  s.position.set(x, y, z); s.userData = opt; s.renderOrder = opt.soft || opt.base ? 2 : 3; parent.add(s); failBodies.push(s);
   if (opt.core) {
     const c = makeFailSprite(failCoreTex[(opt.frame + 2) % FAIL_FRAMES], THREE.AdditiveBlending);
-    const cu = Object.assign({}, opt, { h: opt.h * .62, w: opt.w * .48, ft: Math.random() * 8 });
-    c.position.set(x, y, z); c.userData = cu; c.renderOrder = 3; parent.add(c); failCores.push(c);
+    c.material.depthTest = false;
+    const cu = Object.assign({}, opt, { h: opt.h * .78, w: opt.w * .84, ft: Math.random() * 8 });
+    c.position.set(x, y, z); c.userData = cu; c.renderOrder = 4; parent.add(c); failCores.push(c);
   }
 }
-const failZones = [
-  { x: 0, y: 1.42, z: .05, n: 4, h: 1.85, w: 1.45, spread: [1.25, .1, 1.7], delay: .18, soft: true },
-  { x: 0, y: .78, z: -1.95, n: 3, h: 2.35, w: 1.1, spread: [.75, .16, .48], delay: .02 },
-  { x: 0, y: 1.08, z: -1.15, n: 2, h: 2.55, w: 1.0, spread: [.6, .12, .28], delay: .26 },
-  { x: 0, y: 1.62, z: .2, n: 3, h: 3.15, w: .95, spread: [1.05, .08, 1.15], delay: .48 },
-  { x: -1.02, y: .62, z: 0, n: 2, h: 2.15, w: .9, spread: [.1, .28, 1.55], delay: .38 },
-  { x: 1.02, y: .62, z: .12, n: 2, h: 2.15, w: .9, spread: [.1, .28, 1.55], delay: .42 },
-  { x: 0, y: .78, z: 2.02, n: 2, h: 2.4, w: 1.05, spread: [.85, .16, .38], delay: .78 },
-  { x: -.9, y: .2, z: -1.54, n: 1, h: 1.55, w: .75, spread: [.08, .06, .12], delay: .14 },
-  { x: .9, y: .2, z: -1.54, n: 1, h: 1.55, w: .75, spread: [.08, .06, .12], delay: .18 },
-  { x: -.9, y: .2, z: 1.58, n: 1, h: 1.35, w: .7, spread: [.08, .06, .12], delay: .9 },
-  { x: .9, y: .2, z: 1.58, n: 1, h: 1.35, w: .7, spread: [.08, .06, .12], delay: .94 },
-  { x: 0, y: 0, z: -.15, n: 3, h: 1.15, w: 1.6, spread: [1.5, .02, 2.5], delay: .08, base: true }
-];
 let failFi = 0;
-failZones.forEach(z => {
-  for (let i = 0; i < z.n; i++) {
-    addFailFlame(failFireGroup,
-      z.x + (Math.random() - .5) * z.spread[0],
-      z.y + (Math.random() - .5) * z.spread[1],
-      z.z + (Math.random() - .5) * z.spread[2], {
-        frame: failFi++, h: z.h * (.55 + Math.random() * .9), w: z.w * (.8 + Math.random() * .45),
-        delay: z.delay + Math.random() * .22, seed: Math.random() * 10,
-        f1: 8 + Math.random() * 8, f2: 1.8 + Math.random() * 1.6,
-        base: !!z.base, soft: !!z.soft, core: !z.base && !z.soft && Math.random() < .72, sway: .06 + Math.random() * .1
-      });
-  }
-});
-for (let i = 0; i < 3; i++) {
-  addFailFlame(hoodFire, (Math.random() - .5) * .85, .06 + Math.random() * .1, -.25 - Math.random() * .6, {
-    frame: failFi++, h: .85 + Math.random() * .45, w: .32 + Math.random() * .12,
-    delay: .08 + Math.random() * .2, seed: Math.random() * 10,
-    f1: 10 + Math.random() * 6, f2: 2.1, base: false, core: true, sway: .05
-  });
+function layFail(parent, x, y, z, h, w, delay, extra) {
+  addFailFlame(parent, x, y, z, Object.assign({
+    frame: failFi++, h: h * (.9 + Math.random() * .16), w: w * (.92 + Math.random() * .14),
+    delay: delay + Math.random() * .12, seed: Math.random() * 10,
+    f1: 7 + Math.random() * 5, f2: 1.5 + Math.random() * 1.1,
+    base: false, soft: false, core: false, sway: .025 + Math.random() * .02
+  }, extra));
 }
+/* 同一位置叠两三张很宽的火，盖住整辆车，看起来是一团而不是几条火舌 */
+layFail(failFireGroup, 0, .08, -.7, 3.45, 6.6, .02, { soft: true });
+layFail(failFireGroup, 0, .22, -.65, 3.15, 5.8, .08, { core: true });
+layFail(failFireGroup, .02, .4, -.55, 2.7, 5.0, .14, { soft: true });
+layFail(hoodFire, 0, .04, -.55, 1.9, 2.4, .04, { soft: true });
 function addFailGlow(x, y, z, sc, delay) {
   const s = makeFailSprite(glowTex, THREE.AdditiveBlending);
   s.material.color.setHex(0xff5a14); s.material.opacity = .14;
@@ -2086,12 +2053,12 @@ function stepFailSprite(s, frames, hot, t, dt) {
   const flick = .84 + .16 * Math.sin(t * u.f1 + u.seed);
   const breath = .94 + .06 * Math.sin(t * u.f2 + u.seed * 2);
   const h = Math.max(.01, u.h * grow * flick * breath);
-  const w = Math.max(.01, u.w * grow * (u.base ? 1.2 : 1) * (1.06 - .1 * flick));
+  const w = Math.max(.01, u.w * grow * (u.base ? 1.12 : 1) * (.97 + .05 * flick));
   const sway = Math.sin(t * u.f1 * .35 + u.seed) * u.sway * grow;
   s.position.set(u.x + sway, u.y + h * .5, u.z);
   s.scale.set(w, h, 1);
-  s.material.rotation = Math.sin(t * 1.7 + u.seed) * .1;
-  const op = hot ? .55 : (u.base ? .82 : u.soft ? .5 : .86);
+  s.material.rotation = Math.sin(t * 1.4 + u.seed) * .03;
+  const op = hot ? .28 : (u.base ? .88 : u.soft ? .8 : .86);
   s.material.opacity = op * Math.min(1, grow * 1.25) * (.82 + .18 * flick);
   s.visible = grow > .03;
 }
