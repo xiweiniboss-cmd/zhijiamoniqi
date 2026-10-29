@@ -455,6 +455,25 @@ function pathPose(s) {
   return { x: p.x, z: p.z, hx: t.x, hz: t.z, th: Math.atan2(-t.x, -t.z) };
 }
 function remain() { return Math.max(0, PATH_LEN - (G.s || 0)); }
+/* 左转路口：支路北端接入主路的 T 字近边（roadPlane 主路 z 从 -287.5 起）。
+   导航米数 = 车沿路线到这一断面的剩余路程，过路口或冲过之后夹到 0。 */
+const TURN_JUNCTION_Z = -287.5;
+function curveZAt(sAbs) {
+  const u = Math.min(1, Math.max(0, sAbs / PATH_TOTAL));
+  return PATH_CURVE.getPointAt(u).z;
+}
+let turnAbs = PATH_TOTAL;
+if (curveZAt(0) >= TURN_JUNCTION_Z && curveZAt(PATH_TOTAL) <= TURN_JUNCTION_Z) {
+  let lo = 0, hi = PATH_TOTAL;
+  for (let i = 0; i < 48; i++) {
+    const mid = (lo + hi) / 2;
+    if (curveZAt(mid) > TURN_JUNCTION_Z) lo = mid; else hi = mid;
+  }
+  turnAbs = (lo + hi) / 2;
+}
+const TURN_S = Math.max(0, turnAbs - PATH_S0);
+let navS = 0;
+function metersToTurn() { return Math.max(0, TURN_S - navS); }
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a14);
 scene.fog = new THREE.Fog(0x060a14, 30, 210);
@@ -924,52 +943,107 @@ function buildCar(paintColor, withInterior) {
   const scrTex = new THREE.CanvasTexture(scrCanvas);
   const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(SCR_W, SCR_H), new THREE.MeshBasicMaterial({ map: scrTex }));
   scrMesh.position.z = .006; screenGroup.add(scrMesh);
-  let screenMode = 'normal', scrTickCount = 0, scrBlink = false;
-  function drawScreenNormal(kmh) {
+  let screenMode = 'normal';
+  /* T 字路口：横路在上、支路在下，蓝色引导线沿支路上行后向左。 */
+  function drawTJunction(g, x, y, w, h) {
+    const stemW = Math.round(w * 0.36);
+    const barH = Math.round(h * 0.42);
+    const sx = Math.round(x + (w - stemW) / 2);
+    const r = 12;
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.lineTo(x + w - r, y);
+    g.quadraticCurveTo(x + w, y, x + w, y + r);
+    g.lineTo(x + w, y + barH);
+    g.lineTo(sx + stemW, y + barH);
+    g.lineTo(sx + stemW, y + h - r);
+    g.quadraticCurveTo(sx + stemW, y + h, sx + stemW - r, y + h);
+    g.lineTo(sx + r, y + h);
+    g.quadraticCurveTo(sx, y + h, sx, y + h - r);
+    g.lineTo(sx, y + barH);
+    g.lineTo(x, y + barH);
+    g.lineTo(x, y + r);
+    g.quadraticCurveTo(x, y, x + r, y);
+    g.closePath();
+    g.fillStyle = '#24344e';
+    g.fill();
+    g.lineWidth = 6;
+    g.strokeStyle = '#e8eef8';
+    g.lineJoin = 'round';
+    g.stroke();
+    const cx = sx + stemW / 2;
+    const cy = y + barH * 0.5;
+    g.strokeStyle = '#3b82f6';
+    g.lineWidth = 18;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(cx, y + h - 28);
+    g.lineTo(cx, cy + 10);
+    g.quadraticCurveTo(cx, cy, cx - 22, cy);
+    g.lineTo(x + 46, cy);
+    g.stroke();
+    g.fillStyle = '#3b82f6';
+    g.beginPath();
+    g.moveTo(x + 22, cy);
+    g.lineTo(x + 50, cy - 18);
+    g.lineTo(x + 50, cy + 18);
+    g.closePath();
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.moveTo(cx, y + h - 40);
+    g.lineTo(cx - 11, y + h - 16);
+    g.lineTo(cx + 11, y + h - 16);
+    g.closePath();
+    g.fill();
+  }
+  function drawNavScreen(faultBlink) {
     const g = scrCanvas.getContext('2d');
+    const fault = screenMode === 'fault';
     const grad = g.createLinearGradient(0, 0, 0, 288);
-    grad.addColorStop(0, '#0b1a2e'); grad.addColorStop(1, '#060a14');
+    if (fault) { grad.addColorStop(0, '#33060a'); grad.addColorStop(1, '#18030a'); }
+    else { grad.addColorStop(0, '#0b1a2e'); grad.addColorStop(1, '#060a14'); }
     g.fillStyle = grad; g.fillRect(0, 0, 512, 288);
-    /* 顶部：智驾状态（大字） */
-    g.fillStyle = '#123a6b'; g.beginPath(); g.roundRect(96, 12, 320, 44, 22); g.fill();
-    g.fillStyle = '#9fd0ff'; g.textAlign = 'center'; g.font = 'bold 26px sans-serif';
-    g.fillText('田介智驾 · 已开启', 256, 43);
-    /* 中部：左转箭头 + 提示 */
-    g.strokeStyle = '#3b82f6'; g.lineWidth = 20; g.lineCap = 'round'; g.lineJoin = 'round';
-    g.beginPath(); g.moveTo(118, 200); g.lineTo(118, 132); g.quadraticCurveTo(118, 110, 96, 110); g.lineTo(72, 110); g.stroke();
-    g.fillStyle = '#3b82f6'; g.beginPath(); g.moveTo(34, 110); g.lineTo(76, 78); g.lineTo(76, 142); g.closePath(); g.fill();
-    g.fillStyle = '#ffffff'; g.textAlign = 'left'; g.font = 'bold 44px sans-serif';
-    g.fillText('前方路口左转', 170, 128);
-    g.fillStyle = '#cfe3ff'; g.font = 'bold 28px sans-serif';
-    g.fillText('智驾接管中 · 无需操作', 172, 174);
-    /* 底部：彩蛋 */
-    g.fillStyle = 'rgba(255,81,72,.14)'; g.beginPath(); g.roundRect(20, 220, 472, 52, 12); g.fill();
-    g.fillStyle = '#ffb4ae'; g.textAlign = 'center'; g.font = 'bold 27px sans-serif';
-    g.fillText('杆子就在对面', 256, 256);
+    g.fillStyle = fault ? '#6b1420' : '#123a6b';
+    g.beginPath(); g.roundRect(96, 12, 320, 44, 22); g.fill();
+    g.fillStyle = fault ? '#ffb4ae' : '#9fd0ff';
+    g.textAlign = 'center'; g.font = 'bold 26px sans-serif';
+    g.fillText(fault ? '智驾系统故障' : '田介智驾 · 已开启', 256, 43);
+    drawTJunction(g, 18, 68, 200, 142);
+    const raw = metersToTurn();
+    const arrived = raw <= 0;
+    g.textAlign = 'center';
+    if (arrived) {
+      g.fillStyle = '#ffd166'; g.font = 'bold 72px sans-serif';
+      g.fillText('到位', 368, 150);
+      g.fillStyle = fault ? '#ffd0c8' : '#cfe3ff'; g.font = 'bold 28px sans-serif';
+      g.fillText('左转路口', 368, 192);
+    } else {
+      const n = Math.max(1, Math.round(raw));
+      g.fillStyle = fault ? '#ffd0c8' : '#cfe3ff'; g.font = 'bold 26px sans-serif';
+      g.fillText('还有', 368, 98);
+      g.fillStyle = '#ffffff'; g.font = 'bold 78px sans-serif';
+      g.fillText(String(n), 368, 172);
+      g.fillStyle = fault ? '#ffd0c8' : '#9fd0ff'; g.font = 'bold 28px sans-serif';
+      g.fillText('米左转', 368, 206);
+    }
+    g.fillStyle = fault ? 'rgba(255,81,72,.18)' : 'rgba(255,81,72,.14)';
+    g.beginPath(); g.roundRect(20, 222, 472, 52, 12); g.fill();
+    g.textAlign = 'center'; g.font = 'bold 26px sans-serif';
+    if (fault) { g.fillStyle = '#ffd166'; g.fillText('请立即接管车辆！', 256, 256); }
+    else { g.fillStyle = '#ffb4ae'; g.fillText('杆子就在对面', 256, 256); }
+    if (fault) {
+      g.strokeStyle = faultBlink ? '#ff2222' : '#8c1414';
+      g.lineWidth = 10; g.strokeRect(5, 5, 502, 278);
+    }
     scrTex.needsUpdate = true;
   }
-  function drawScreenFault(on) {
-    const g = scrCanvas.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 0, 288);
-    grad.addColorStop(0, '#33060a'); grad.addColorStop(1, '#18030a');
-    g.fillStyle = grad; g.fillRect(0, 0, 512, 288);
-    g.strokeStyle = on ? '#ff2222' : '#8c1414'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 278);
-    g.fillStyle = '#ffcf3f'; g.textAlign = 'center'; g.font = '84px sans-serif';
-    g.fillText('⚠', 256, 108);
-    g.fillStyle = '#ff5148'; g.font = 'bold 42px sans-serif';
-    g.fillText('智驾系统故障', 256, 168);
-    g.fillStyle = '#ffd166'; g.font = 'bold 27px sans-serif';
-    g.fillText('请立即接管车辆！', 256, 210);
-    g.fillStyle = '#ff9d94'; g.font = '15px sans-serif';
-    g.fillText('油门控制异常 · 制动系统待命 · 踩刹车注意力度', 256, 252);
-    scrTex.needsUpdate = true;
-  }
-  drawScreenNormal(0);
-  refs.setScreen = m => { screenMode = m; scrTickCount = 0; if (m === 'fault') drawScreenFault(true); else drawScreenNormal(0); };
-  refs.screenTick = kmh => {
-    scrTickCount++;
-    if (screenMode === 'normal') { if (scrTickCount === 1) drawScreenNormal(kmh); }
-    else if (scrTickCount % 4 === 0) { scrBlink = !scrBlink; drawScreenFault(scrBlink); }
+  drawNavScreen(false);
+  refs.setScreen = m => { screenMode = m; drawNavScreen(m === 'fault'); };
+  refs.screenTick = (kmh, s, t) => {
+    if (typeof s === 'number') navS = s;
+    const blink = screenMode === 'fault' && Math.floor((t || 0) * 2.8) % 2 === 0;
+    drawNavScreen(blink);
   };
   /* 仪表：宽幅液晶条 */
   const clusterCanvas = document.createElement('canvas'); clusterCanvas.width = 512; clusterCanvas.height = 128;
@@ -2541,8 +2615,8 @@ function step(dt, t) {
   if (clusterTimer <= 0) {
     clusterTimer = .09;
     CAR.drawCluster(kmh, (ph === 'runaway' || ph === 'crash' || ph === 'seq' || ph === 'burned') ? '!' : 'D');
-    CAR.screenTick(kmh);
   }
+  CAR.screenTick(kmh, G.s || 0, t);
 }
 G.phase = 'menu'; G.speed = 0; G.z = 0; G.s = 0; G.px = -1.75; G.pz = 0; G.hx = 0; G.hz = -1; G.shake = 0; G.force = 0;
 function animate() {
