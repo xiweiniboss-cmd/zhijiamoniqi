@@ -113,6 +113,142 @@
   #resultNote { margin-top:10px; font-size:13.5px; line-height:1.75; color:#aebad2; }
   #startOverlay .tag { display:inline-block; font-size:11px; padding:2px 9px; border-radius:999px; border:1px solid rgba(255,209,102,.6); color:#ffd166; margin-left:8px; vertical-align:middle; }
 
+  /* ---------- 主菜单 · 影院海报 ---------- */
+  body:has(#startOverlay:not(.hidden)) #hud,
+  body:has(#startOverlay:not(.hidden)) #viewBtnHud { visibility:hidden !important; }
+  #startOverlay {
+    background:transparent; backdrop-filter:none; -webkit-backdrop-filter:none;
+    align-items:flex-end; justify-content:center; padding:0;
+  }
+  #startOverlay .poster-veil {
+    position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(ellipse at 50% 36%, transparent 0%, rgba(0,0,0,.18) 62%, rgba(0,0,0,.38) 100%),
+      linear-gradient(180deg, rgba(0,0,0,.22) 0%, rgba(0,0,0,0) 16%, rgba(0,0,0,0) 42%, rgba(0,0,0,.28) 64%, rgba(0,0,0,.62) 100%);
+  }
+  #startOverlay .poster-sheet {
+    position:relative; z-index:1; width:min(100%, 560px); max-height:78vh; max-height:min(78dvh, 100%);
+    overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;
+    display:flex; flex-direction:column; gap:8px;
+    background:linear-gradient(180deg, rgba(5,7,14,0) 0%, rgba(5,7,14,.42) 12%, rgba(5,7,14,.72) 34%, rgba(5,7,14,.9) 100%);
+    border:none; border-radius:0; box-shadow:none;
+    padding:26px 16px calc(env(safe-area-inset-bottom, 0px) + 10px);
+    animation:posterIn .65s ease-out;
+  }
+  #startOverlay .poster-sheet::-webkit-scrollbar { width:0; height:0; }
+  @keyframes posterIn { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }
+  #startOverlay .poster-sheet > * { margin-top:0; }
+  #startOverlay button, #startOverlay input { font-family:inherit; }
+  #startOverlay .poster-head { text-align:center; }
+  #startOverlay .poster-kicker {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    margin:0; font-size:11px; font-weight:700;
+    color:#ffd166; text-shadow:0 1px 8px rgba(0,0,0,.8);
+  }
+  #startOverlay .poster-kicker span { letter-spacing:.28em; padding-left:.28em; }
+  #startOverlay .poster-kicker i { display:block; width:28px; height:1px; background:rgba(255,209,102,.7); }
+  #startOverlay .poster-sheet h1 {
+    margin-top:5px; font-size:clamp(26px, 7.5vw, 42px); font-weight:900; line-height:1.12; letter-spacing:.04em;
+    text-shadow:0 2px 18px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.9);
+  }
+  #startOverlay .poster-sheet h1 .accent { color:#ff4b45; text-shadow:0 0 16px rgba(255,50,40,.55), 0 2px 12px rgba(0,0,0,.85); }
+  #startOverlay .poster-sheet .tagline {
+    margin-top:6px; font-size:13px; line-height:1.55; color:#e7edf8;
+    text-shadow:0 1px 8px rgba(0,0,0,.9);
+  }
+  #startOverlay .name-row { margin-top:2px; gap:8px; }
+  #startOverlay #menuNickname {
+    margin-top:0; padding:10px 12px; font-size:15px; border-radius:11px;
+    background:rgba(255,255,255,.07); border-color:rgba(180,200,255,.28);
+  }
+  #startOverlay #menuNickname::placeholder { color:rgba(232,236,244,.42); }
+  #startOverlay #btnNameOk { padding:0 14px; font-size:14px; border-radius:11px; }
+  #startOverlay #nameHint { margin-top:0; }
+  #startOverlay .diff-box { margin-top:0; flex-direction:row; gap:8px; }
+  #startOverlay .diff-btn {
+    width:auto; flex:1 1 0; min-width:0; text-align:center; padding:8px 6px; border-radius:11px;
+    background:rgba(255,255,255,.05);
+  }
+  #startOverlay .diff-btn .diff-name { font-size:13px; letter-spacing:0; line-height:1.3; }
+  #startOverlay .diff-btn .diff-desc { font-size:10.5px; line-height:1.35; margin-top:3px; }
+  #startOverlay #btnStart {
+    margin-top:2px; padding:14px 0 15px; font-size:20px; letter-spacing:6px; text-indent:6px;
+    border-radius:14px; flex-shrink:0;
+    background:linear-gradient(180deg, #ff5848 0%, #d2261c 58%, #9d1610 100%);
+    box-shadow:0 12px 30px rgba(210,32,24,.46), inset 0 1px 0 rgba(255,255,255,.28);
+  }
+  #startOverlay .poster-chips { display:flex; gap:6px; }
+  #startOverlay .poster-chip {
+    flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; gap:3px;
+    min-height:36px; padding:6px 2px; border-radius:11px; cursor:pointer;
+    border:1px solid rgba(186,206,255,.22); background:rgba(255,255,255,.06);
+    color:#e8eefc; font-size:12.5px; font-weight:700; letter-spacing:.5px;
+  }
+  #startOverlay .poster-chip .emo { font-size:14px; line-height:1; }
+  #startOverlay .poster-chip:active { transform:scale(.97); }
+  #startOverlay .poster-toggles { gap:8px; }
+  #startOverlay .poster-toggles .menu-btn {
+    margin-top:0; width:auto; flex:1 1 0; min-width:0; padding:8px 4px;
+    font-size:13px; font-weight:700; letter-spacing:0; border-radius:999px;
+    background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.16);
+  }
+  #startOverlay .poster-fineprint { margin:0; }
+  #startOverlay .poster-fineprint summary {
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    list-style:none; cursor:pointer; font-size:11px; letter-spacing:.4px;
+    color:rgba(255,198,198,.84); text-shadow:0 1px 6px rgba(0,0,0,.8);
+  }
+  #startOverlay .poster-fineprint summary::-webkit-details-marker { display:none; }
+  #startOverlay .poster-fineprint summary::after { content:'▸'; font-size:10px; opacity:.85; }
+  #startOverlay .poster-fineprint[open] summary::after { content:'▾'; }
+  #startOverlay .poster-fineprint .disclaimer {
+    margin-top:6px; font-size:11px; line-height:1.55; padding:8px 10px;
+  }
+  @media (hover:hover) {
+    #startOverlay .poster-chip:hover,
+    #startOverlay .poster-toggles .menu-btn:hover { background:rgba(255,255,255,.12); }
+    #startOverlay #btnStart:hover { filter:brightness(1.06); }
+  }
+  @media (orientation:landscape) {
+    #startOverlay { align-items:stretch; justify-content:flex-end; }
+    #startOverlay .poster-veil {
+      background:
+        radial-gradient(ellipse at 32% 50%, transparent 0%, rgba(0,0,0,.16) 70%, rgba(0,0,0,.34) 100%),
+        linear-gradient(90deg, rgba(0,0,0,.12) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,.18) 58%, rgba(0,0,0,.55) 82%, rgba(0,0,0,.72) 100%);
+    }
+    #startOverlay .poster-sheet {
+      width:min(400px, max(318px, 40vw)); height:100%; max-height:100%;
+      justify-content:center; justify-content:safe center; gap:6px;
+      border-radius:0;
+      padding:8px calc(env(safe-area-inset-right, 0px) + 14px) calc(env(safe-area-inset-bottom, 0px) + 8px) 22px;
+      background:linear-gradient(90deg, rgba(5,7,14,0) 0%, rgba(5,7,14,.48) 16%, rgba(5,7,14,.74) 42%, rgba(5,7,14,.88) 100%);
+      border-left:1px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+      animation-name:posterInSide;
+    }
+    @keyframes posterInSide { from { opacity:0; transform:translateX(18px); } to { opacity:1; transform:none; } }
+    #startOverlay .poster-sheet h1 { font-size:clamp(20px, 5.4vh, 34px); margin-top:2px; white-space:nowrap; }
+    #startOverlay .poster-sheet .tagline { margin-top:2px; font-size:12.5px; line-height:1.4; }
+    #startOverlay .diff-btn { padding:6px 5px; }
+    #startOverlay #btnStart { padding:11px 0; font-size:18px; }
+    #startOverlay .poster-chip { min-height:32px; }
+    #startOverlay #menuNickname { padding:8px 10px; }
+    #startOverlay .poster-kicker span { letter-spacing:.18em; padding-left:.18em; }
+  }
+  @media (orientation:landscape) and (max-height:340px) {
+    #startOverlay .poster-sheet { gap:4px; padding-top:6px; padding-bottom:6px; }
+    #startOverlay .poster-kicker { display:none; }
+    #startOverlay .poster-sheet h1 { font-size:clamp(20px, 4.6vh, 28px); margin-top:0; }
+    #startOverlay .poster-sheet .tagline { font-size:12px; line-height:1.4; margin-top:2px; }
+    #startOverlay #menuNickname { padding:7px 10px; font-size:14px; }
+    #startOverlay .diff-btn { padding:6px 4px; }
+    #startOverlay .diff-btn .diff-name { font-size:12px; }
+    #startOverlay .diff-btn .diff-desc { font-size:10px; }
+    #startOverlay #btnStart { padding:10px 0; font-size:17px; letter-spacing:4px; text-indent:4px; }
+    #startOverlay .poster-chip { min-height:32px; font-size:12px; }
+    #startOverlay .poster-toggles .menu-btn { padding:6px 2px; font-size:12px; }
+  }
+
   /* ---------- 新闻播报 ---------- */
   #newsOverlay .card { background:linear-gradient(180deg,#f4f6fa,#e6ebf2); color:#1a2333; border:none; }
   .news-head { display:flex; align-items:center; gap:10px; border-bottom:4px solid #c8102e; padding-bottom:10px; }
@@ -197,28 +333,37 @@
 </div>
 
 <div class="overlay" id="startOverlay">
-  <div class="card">
-    <h1>《智驾<span class="accent">接管</span>模拟器》</h1>
-    <p class="tagline">你喝了很多酒，却把命交给了自动驾驶——<br>快到路口时，<span class="red">智驾突然失灵</span>，油门锁死飙到 <b style="color:#ffd166" id="tagSpeed">139km/h</b>！<br>能不能活下来，就看你接管的这一下。</p>
+  <div class="poster-veil" aria-hidden="true"></div>
+  <div class="card poster-sheet">
+    <header class="poster-head">
+      <p class="poster-kicker"><span>深夜路口</span><i aria-hidden="true"></i><span>智驾失灵</span></p>
+      <h1>《智驾<span class="accent">接管</span>模拟器》</h1>
+      <p class="tagline">你喝了很多酒，却把命交给了自动驾驶。<br>路口<span class="red">智驾失灵</span>，油门锁死 <b style="color:#ffd166" id="tagSpeed">139km/h</b>。</p>
+    </header>
     <div class="name-row">
       <input id="menuNickname" maxlength="12" placeholder="输入昵称（上榜用）" autocomplete="off">
-      <button id="btnNameOk">确认</button>
+      <button id="btnNameOk" type="button">确认</button>
     </div>
     <div id="nameHint"></div>
     <div class="diff-box">
-      <button class="diff-btn" id="diffEasy"><span class="diff-name">诚实正直不说假话</span><span class="diff-desc">简单模式 · 失控车速 60km/h · 成绩不计入排行榜</span></button>
-      <button class="diff-btn" id="diffHard"><span class="diff-name">遥遥领先</span><span class="diff-desc">困难模式 · 失控车速 139km/h · 成绩计入排行榜</span></button>
+      <button class="diff-btn" id="diffEasy" type="button"><span class="diff-name">诚实正直不说假话</span><span class="diff-desc">简单模式 · 60km/h<br>成绩不计入排行榜</span></button>
+      <button class="diff-btn" id="diffHard" type="button"><span class="diff-name">遥遥领先</span><span class="diff-desc">困难模式 · 139km/h<br>成绩计入排行榜</span></button>
     </div>
-    <button class="big-btn" id="btnStart">开始游戏</button>
-    <button class="menu-btn" id="btnHowto">🎮 游戏玩法</button>
-    <button class="menu-btn" id="btnRank">🏆 排行榜</button>
-    <button class="menu-btn" id="btnNotice">📢 公告</button>
-    <div class="menu-row">
-      <button class="menu-btn half" id="viewBtn">🚗 视角：车外</button>
-      <button class="menu-btn half" id="muteBtn">🔊 音效：开</button>
+    <button class="big-btn" id="btnStart" type="button">开始游戏</button>
+    <div class="poster-chips">
+      <button class="poster-chip" id="btnHowto" type="button"><span class="emo" aria-hidden="true">🎮</span>玩法</button>
+      <button class="poster-chip" id="btnRank" type="button"><span class="emo" aria-hidden="true">🏆</span>排行</button>
+      <button class="poster-chip" id="btnNotice" type="button"><span class="emo" aria-hidden="true">📢</span>公告</button>
+      <button class="poster-chip" id="btnFeedback" type="button"><span class="emo" aria-hidden="true">💬</span>反馈</button>
     </div>
-    <button class="menu-btn" id="btnFeedback">💬 反馈</button>
-    <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
+    <div class="menu-row poster-toggles">
+      <button class="menu-btn half" id="viewBtn" type="button">🚗 视角：车外</button>
+      <button class="menu-btn half" id="muteBtn" type="button">🔊 音效：开</button>
+    </div>
+    <details class="poster-fineprint">
+      <summary>虚构情节 · 严禁酒驾</summary>
+      <p class="disclaimer">（游戏情节纯属虚构，如有雷同纯属巧合。喝酒不开车，开车不喝酒，严禁饮酒驾驶，遵守交通规则。）</p>
+    </details>
   </div>
 </div>
 
@@ -3192,8 +3337,16 @@ function step(dt, t) {
   const extVis = VIEW !== 'inside' || ph === 'menu' || G.burning || G.parked;
   if (CAR._extVis !== extVis) { CAR._extVis = extVis; CAR.exterior.forEach(m => m.visible = extVis); }
   if (ph === 'menu') {
-    camera.position.set(G.px + Math.sin(t * .28) * 4.7, 1.55 + Math.sin(t * .17) * .25, G.pz + Math.cos(t * .28) * 4.7);
-    camera.lookAt(G.px, .72, G.pz - .4);
+    /* 影院海报：竖屏把车抬到上半区，横屏让出右侧玻璃条 */
+    const wide = innerWidth > innerHeight;
+    const R = wide ? 5.15 : 6.7;
+    const ang = 2.22 + Math.sin(t * .22) * (wide ? .05 : .12);
+    camera.position.set(
+      G.px + Math.sin(ang) * R,
+      (wide ? 1.02 : 1.16) + Math.sin(t * .17) * .05,
+      G.pz + Math.cos(ang) * R
+    );
+    camera.lookAt(G.px + (wide ? -4.45 : 0), wide ? 0.22 : 0.02, G.pz + (wide ? 0.45 : 0.15));
   } else if (G.parked) {
     /* 刹停成功：车后方看过去，双闪 + 人站在路边打电话 */
     const portrait = innerWidth / innerHeight < .8;
