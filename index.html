@@ -944,6 +944,60 @@ function buildCar(paintColor, withInterior) {
   const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(SCR_W, SCR_H), new THREE.MeshBasicMaterial({ map: scrTex }));
   scrMesh.position.z = .006; screenGroup.add(scrMesh);
   let screenMode = 'normal';
+  /* 白箭头沿蓝色引导线走。进度与 metersToTurn 相同：0 在支路底部，1 为到位。
+     路径只收到左转弯角（二次曲线终点），不沿主路横段继续往左。朝向取该处切线。 */
+  function navMarkerPose(p, x0, y0, x1, y1, cpx, cpy, x2, y2) {
+    const l1 = Math.hypot(x1 - x0, y1 - y0);
+    const steps = 12;
+    const qx = [x1], qy = [y1];
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      qx.push(u * u * x1 + 2 * u * t * cpx + t * t * x2);
+      qy.push(u * u * y1 + 2 * u * t * cpy + t * t * y2);
+    }
+    const seglen = [];
+    let l2 = 0;
+    for (let i = 1; i < qx.length; i++) {
+      const len = Math.hypot(qx[i] - qx[i - 1], qy[i] - qy[i - 1]);
+      seglen.push(len); l2 += len;
+    }
+    let dist = Math.min(1, Math.max(0, p)) * (l1 + l2);
+    if (dist <= l1 || l2 === 0) {
+      const t = l1 > 0 ? dist / l1 : 0;
+      return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, tx: x1 - x0, ty: y1 - y0 };
+    }
+    dist -= l1;
+    for (let i = 0; i < seglen.length; i++) {
+      if (dist <= seglen[i] || i === seglen.length - 1) {
+        const t = seglen[i] > 0 ? Math.min(1, dist / seglen[i]) : 1;
+        return {
+          x: qx[i] + (qx[i + 1] - qx[i]) * t,
+          y: qy[i] + (qy[i + 1] - qy[i]) * t,
+          tx: qx[i + 1] - qx[i],
+          ty: qy[i + 1] - qy[i]
+        };
+      }
+      dist -= seglen[i];
+    }
+    return { x: x2, y: y2, tx: x2 - cpx, ty: y2 - cpy };
+  }
+  function drawNavMarker(g, x, y, tx, ty) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(Math.atan2(tx, -ty));
+    g.beginPath();
+    g.moveTo(0, -16);
+    g.lineTo(-11, 8);
+    g.lineTo(11, 8);
+    g.closePath();
+    g.fillStyle = '#ffffff';
+    g.strokeStyle = '#07111f';
+    g.lineWidth = 3;
+    g.lineJoin = 'round';
+    g.stroke();
+    g.fill();
+    g.restore();
+  }
   /* T 字路口：横路在上、支路在下，蓝色引导线沿支路上行后向左。 */
   function drawTJunction(g, x, y, w, h) {
     const stemW = Math.round(w * 0.36);
@@ -989,13 +1043,9 @@ function buildCar(paintColor, withInterior) {
     g.lineTo(x + 50, cy + 18);
     g.closePath();
     g.fill();
-    g.fillStyle = '#ffffff';
-    g.beginPath();
-    g.moveTo(cx, y + h - 40);
-    g.lineTo(cx - 11, y + h - 16);
-    g.lineTo(cx + 11, y + h - 16);
-    g.closePath();
-    g.fill();
+    const along = TURN_S > 0 ? Math.min(1, Math.max(0, 1 - metersToTurn() / TURN_S)) : 1;
+    const mk = navMarkerPose(along, cx, y + h - 24, cx, cy + 10, cx, cy, cx - 22, cy);
+    drawNavMarker(g, mk.x, mk.y, mk.tx, mk.ty);
   }
   function drawNavScreen(faultBlink) {
     const g = scrCanvas.getContext('2d');
