@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v53 -->
+<!-- zhijia v54 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -61,10 +61,6 @@
   .seq-btn.done { background:rgba(24,110,44,.9); border-color:#51cf66; opacity:.8; }
   .seq-btn.wrong { background:rgba(150,20,20,.92); border-color:#ff5148; }
   #fireOverlay { position:fixed; inset:0; z-index:7; pointer-events:none; opacity:0; background:radial-gradient(ellipse at 50% 112%, rgba(255,110,0,.8) 0%, rgba(255,60,0,.34) 30%, rgba(120,0,0,.14) 52%, transparent 72%); transition:opacity .3s; }
-  #fireOverlay.heat { background:
-    radial-gradient(ellipse at 50% 116%, rgba(255,186,80,.32) 0%, rgba(255,70,0,.12) 22%, rgba(70,10,0,.08) 48%, transparent 70%),
-    radial-gradient(ellipse at 20% 92%, rgba(255,48,0,.10) 0%, transparent 34%),
-    radial-gradient(ellipse at 80% 96%, rgba(255,120,16,.11) 0%, transparent 32%); }
   #whiteFlash { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:20; transition:opacity .25s; }
 
   /* ---------- 通用弹窗 ---------- */
@@ -1829,9 +1825,9 @@ for (let i = 0; i < 16; i++) {
   s.userData.ph = i / 16; s.userData.dx = (Math.random() - .5) * 2.2; s.userData.dz = (Math.random() - .5) * 3.5;
   smokeGroup.add(s); smokeSprites.push(s);
 }
-/* 逃生失败结算专用火：画布火舌序列帧 + 烟柱 + 火星 + 热浪。
+/* 逃生失败结算专用火：引擎舱一根噪声体火（光线步进），不是宽贴图卡片。
+   整团共用一个闪烁相位。车窗和轮拱只是同一团火里更暗的部分。
    逃生成功仍走上面的光晕精灵，不进这条路径。 */
-const FAIL_FRAMES = 5;
 function hash2(ix, iy) {
   let n = Math.imul(ix | 0, 374761393) + Math.imul(iy | 0, 668265263);
   n = Math.imul(n ^ (n >>> 13), 1274126177);
@@ -1849,68 +1845,6 @@ function fbm(x, y) {
   for (let i = 0; i < 4; i++) { v += a * vnoise(x * f, y * f); s += a; f *= 2.03; a *= 0.5; }
   return v / s;
 }
-function sampleRamp(stops, t) {
-  if (t <= stops[0][0]) return stops[0];
-  for (let i = 1; i < stops.length; i++) {
-    if (t <= stops[i][0]) {
-      const a = stops[i - 1], b = stops[i], f = (t - a[0]) / (b[0] - a[0] || 1);
-      return [t, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f, a[4] + (b[4] - a[4]) * f];
-    }
-  }
-  return stops[stops.length - 1];
-}
-const BODY_RAMP = [
-  [0, 0, 0, 0, 0],
-  [.07, .55, .04, 0, .10],
-  [.20, .92, .10, 0, .62],
-  [.38, 1, .32, .02, .86],
-  [.58, 1, .62, .08, .94],
-  [.78, 1, .86, .32, .98],
-  [1, 1, .98, .86, 1]
-];
-const CORE_RAMP = [
-  [0, 0, 0, 0, 0],
-  [.28, 1, .42, .02, 0],
-  [.48, 1, .62, .08, .40],
-  [.72, 1, .90, .40, .78],
-  [1, 1, .99, .92, 1]
-];
-function smooth01(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
-function flameHeat(u, v, seed) {
-  /* 一整团：左右几乎一样亮，只在外缘和起伏的顶边变暗，避免中间亮成几条火柱 */
-  const rise = 1 - v;
-  const n1 = fbm(u * 2.4 + seed, rise * 1.5 + seed);
-  const n2 = fbm(u * 5.1 + seed + 2.8, rise * 2.6 + 3);
-  const top = .02 + n1 * .48 * Math.pow(rise, .4);
-  const crown = smooth01((v - top) / .18);
-  const side = smooth01((.5 - Math.abs(u - .5)) / .09);
-  const foot = smooth01(Math.min(1, v / .05));
-  return side * crown * foot * (.62 + .16 * n2);
-}
-function paintFlame(w, h, seed, hot) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const g = c.getContext('2d', { willReadFrequently: true });
-  const img = g.createImageData(w, h), d = img.data;
-  const ramp = hot ? CORE_RAMP : BODY_RAMP;
-  for (let y = 0; y < h; y++) {
-    const v = y / (h - 1);
-    for (let x = 0; x < w; x++) {
-      let heat = flameHeat(x / (w - 1), v, seed);
-      heat = hot ? Math.pow(heat, .65) : Math.pow(heat, 1.05);
-      const col = sampleRamp(ramp, heat);
-      const i = (y * w + x) * 4;
-      d[i] = col[1] * 255; d[i + 1] = col[2] * 255; d[i + 2] = col[3] * 255; d[i + 3] = col[4] * 255;
-    }
-  }
-  g.putImageData(img, 0, 0);
-  const out = document.createElement('canvas'); out.width = w; out.height = h;
-  const og = out.getContext('2d');
-  og.filter = 'blur(1.6px)'; og.drawImage(c, 0, 0);
-  const tex = new THREE.CanvasTexture(out);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-  return tex;
-}
 function paintSmokeTex() {
   const w = 128, h = 128;
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1921,11 +1855,11 @@ function paintSmokeTex() {
     const dx = u - .5, dy = v - .5, r = Math.sqrt(dx * dx + dy * dy) * 2;
     const n = fbm(u * 3.1 + 1.4, v * 3.1 + 6.2);
     const n2 = fbm(u * 6.2 + .4, v * 6.2 + 2);
-    let a = 1 - Math.min(1, Math.pow(r, 1.05) * (.8 + (1 - n) * .4));
-    if (a < 0) a = 0; else a = Math.pow(a, .8) * (.78 + .22 * n2);
-    const shade = .78 + .18 * n;
+    let a = 1 - Math.min(1, Math.pow(r, 1.05) * (.75 + (1 - n) * .45));
+    if (a < 0) a = 0; else a = Math.pow(a, .75) * (.7 + .3 * n2);
+    const shade = .55 + .4 * n;
     const i = (y * w + x) * 4;
-    d[i] = shade * 255; d[i + 1] = (shade * .96) * 255; d[i + 2] = (shade * .9) * 255; d[i + 3] = Math.min(1, a) * 255;
+    d[i] = shade * 255; d[i + 1] = shade * 250; d[i + 2] = shade * 240; d[i + 3] = Math.min(1, a) * 255;
   }
   g.putImageData(img, 0, 0);
   const tex = new THREE.CanvasTexture(c);
@@ -1937,10 +1871,10 @@ function paintEmberTex() {
   const c = document.createElement('canvas'); c.width = c.height = 32;
   const g = c.getContext('2d');
   const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-  gr.addColorStop(0, 'rgba(255,255,245,1)');
-  gr.addColorStop(.28, 'rgba(255,214,110,.95)');
-  gr.addColorStop(.6, 'rgba(255,110,16,.35)');
-  gr.addColorStop(1, 'rgba(255,50,0,0)');
+  gr.addColorStop(0, 'rgba(255,255,240,1)');
+  gr.addColorStop(.3, 'rgba(255,196,70,.95)');
+  gr.addColorStop(.62, 'rgba(255,90,10,.4)');
+  gr.addColorStop(1, 'rgba(255,40,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1964,70 +1898,276 @@ function paintHeatNoise() {
   tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   return tex;
 }
-const failBodyTex = [], failCoreTex = [];
-for (let i = 0; i < FAIL_FRAMES; i++) {
-  failBodyTex.push(paintFlame(128, 160, i * 1.51 + .4, false));
-  failCoreTex.push(paintFlame(96, 140, i * 1.51 + 3.3, true));
-}
 const failSmokeTex = paintSmokeTex();
 const failEmberTex = paintEmberTex();
 const failNoiseTex = paintHeatNoise();
 const failFireGroup = new THREE.Group(); failFireGroup.visible = false; failFireGroup.frustumCulled = false; CAR.group.add(failFireGroup);
 const hoodFire = new THREE.Group(); hoodFire.visible = false; hoodFire.frustumCulled = false; CAR.hoodPivot.add(hoodFire);
-const failBodies = [], failCores = [], failGlows = [], failSmokes = [], failEmbers = [];
+const failFx = new THREE.Group(); failFx.visible = false; failFx.frustumCulled = false; scene.add(failFx);
+const uTime = { value: 0 }, uFlick = { value: 1 }, uSheet = { value: 0 }, uGain = { value: 0 };
+const volCam = new THREE.Vector3();
+const volInv = new THREE.Matrix4();
+const volPos = new THREE.Vector3(0, 1.95, -0.2);
+const volScale = new THREE.Vector3(2.9, 3.9, 6.3);
+const volMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime, uFlick, uGain, uSheet,
+    uCamLocal: { value: new THREE.Vector3() },
+    uPos: { value: volPos },
+    uScale: { value: volScale },
+    tDepth: { value: null },
+    uRes: { value: new THREE.Vector2(1, 1) },
+    uNear: { value: camera.near },
+    uFar: { value: camera.far },
+    uModelView: { value: new THREE.Matrix4() },
+    uProj: { value: new THREE.Matrix4() }
+  },
+  transparent: true,
+  depthTest: false,
+  depthWrite: false,
+  blending: THREE.NormalBlending,
+  side: THREE.FrontSide,
+  toneMapped: true,
+  vertexShader: [
+    'varying vec3 vLocal;',
+    'void main(){',
+    '  vLocal = position;',
+    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+    '}'
+  ].join('\n'),
+  fragmentShader: [
+    'precision highp float;',
+    'uniform float uTime, uFlick, uGain, uSheet, uNear, uFar;',
+    'uniform vec3 uCamLocal, uPos, uScale;',
+    'uniform mat4 uModelView, uProj;',
+    'uniform sampler2D tDepth;',
+    'uniform vec2 uRes;',
+    'varying vec3 vLocal;',
+    'float hash13(vec3 p){',
+    '  p = fract(p * 0.1031);',
+    '  p += dot(p, p.yzx + 33.33);',
+    '  return fract((p.x + p.y) * p.z);',
+    '}',
+    'float vnoise(vec3 p){',
+    '  vec3 i = floor(p);',
+    '  vec3 f = fract(p);',
+    '  f = f * f * (3.0 - 2.0 * f);',
+    '  float n000 = hash13(i);',
+    '  float n100 = hash13(i + vec3(1.0, 0.0, 0.0));',
+    '  float n010 = hash13(i + vec3(0.0, 1.0, 0.0));',
+    '  float n110 = hash13(i + vec3(1.0, 1.0, 0.0));',
+    '  float n001 = hash13(i + vec3(0.0, 0.0, 1.0));',
+    '  float n101 = hash13(i + vec3(1.0, 0.0, 1.0));',
+    '  float n011 = hash13(i + vec3(0.0, 1.0, 1.0));',
+    '  float n111 = hash13(i + vec3(1.0, 1.0, 1.0));',
+    '  return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),',
+    '             mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);',
+    '}',
+    'float fbm(vec3 p){',
+    '  float v = 0.0;',
+    '  v += 0.55 * vnoise(p);',
+    '  p = p * 2.04 + vec3(1.7, 9.2, 3.1);',
+    '  v += 0.30 * vnoise(p);',
+    '  p = p * 2.03 + vec3(4.2, 1.3, 8.1);',
+    '  v += 0.15 * vnoise(p);',
+    '  return v;',
+    '}',
+    'float winDist(float depth){',
+    '  float z = depth * 2.0 - 1.0;',
+    '  return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));',
+    '}',
+    'float falloff(float inner, float outer, float d){',
+    '  return 1.0 - smoothstep(inner, outer, d);',
+    '}',
+    'void main(){',
+    '  vec3 ro = uCamLocal;',
+    '  vec3 rd = vLocal - ro;',
+    '  float rdLen = length(rd);',
+    '  if (rdLen < 0.0001) discard;',
+    '  rd /= rdLen;',
+    '  if (abs(rd.x) < 0.0001) rd.x = rd.x < 0.0 ? -0.0001 : 0.0001;',
+    '  if (abs(rd.y) < 0.0001) rd.y = rd.y < 0.0 ? -0.0001 : 0.0001;',
+    '  if (abs(rd.z) < 0.0001) rd.z = rd.z < 0.0 ? -0.0001 : 0.0001;',
+    '  rd = normalize(rd);',
+    '  vec3 invR = 1.0 / rd;',
+    '  vec3 tbot = (vec3(-0.5) - ro) * invR;',
+    '  vec3 ttop = (vec3(0.5) - ro) * invR;',
+    '  vec3 tminv = min(tbot, ttop);',
+    '  vec3 tmaxv = max(tbot, ttop);',
+    '  float tN = max(max(tminv.x, tminv.y), tminv.z);',
+    '  float tF = min(min(tmaxv.x, tmaxv.y), tmaxv.z);',
+    '  if (tF < 0.0 || tN > tF) discard;',
+    '  tN = max(tN, 0.0);',
+    '  float jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);',
+    '  float stepsN = 22.0;',
+    '  float dt = (tF - tN) / stepsN;',
+    '  float t = tN + dt * jit;',
+    '  vec2 suv = gl_FragCoord.xy / uRes;',
+    '  float sceneWin = texture2D(tDepth, suv).r;',
+    '  float sceneDist = winDist(sceneWin);',
+    '  vec3 col = vec3(0.0);',
+    '  float alpha = 0.0;',
+    '  for (int i = 0; i < 22; i++) {',
+    '    if (t > tF || alpha > 0.94) break;',
+    '    vec3 p = ro + rd * t;',
+    '    vec3 carP = uPos + p * uScale;',
+    '    vec4 clip = uProj * uModelView * vec4(p, 1.0);',
+    '    float sampleDist = winDist(clip.z / clip.w * 0.5 + 0.5);',
+    '    vec3 bc = carP - vec3(0.0, 0.78, 0.25);',
+    '    float inBody = 1.0 - smoothstep(0.0, 0.12, max(abs(bc.x) - 0.70, max(abs(bc.y) - 0.36, abs(bc.z) - 1.45)));',
+    '    float behind = sampleDist - sceneDist;',
+    '    if (sceneWin > 0.001 && behind > 0.05) {',
+    '      if (inBody > 0.45 || behind > 0.48) break;',
+    '    }',
+    '    vec3 f = carP - vec3(0.28, 0.9, -1.58);',
+    '    float h = f.y;',
+    '    vec2 xz = vec2(f.x - h * 0.18, f.z + h * 0.02);',
+    '    vec3 npos = vec3(xz.x * 2.2, h * 0.42 - uTime * 0.7, xz.y * 1.6);',
+    '    float n = fbm(npos);',
+    '    float n2 = vnoise(vec3(xz.x * 4.8 + 1.7, h * 1.3 - uTime * 1.25, xz.y * 4.8));',
+    '    float hh = clamp(h, 0.0, 2.6);',
+    '    vec2 c0 = vec2(0.06, -0.55) * min(hh, 1.35);',
+    '    vec2 c1 = vec2(0.16, 0.02) * hh;',
+    '    vec2 c2 = vec2(0.04, 0.62) * min(hh, 1.15);',
+    '    float rad = mix(0.5, 0.08, smoothstep(0.1, 2.5, h));',
+    '    float d0 = falloff(rad * 0.25, rad * 1.05, length(xz - c0));',
+    '    float d1 = falloff(rad * 0.2, rad * 0.95, length(xz - c1));',
+    '    float d2 = falloff(rad * 0.22, rad, length(xz - c2));',
+    '    float r0 = 1.05 + 0.45 * n2;',
+    '    float r1 = 2.05 + 0.85 * n;',
+    '    float r2 = 1.45 + 0.4 * n2;',
+    '    d0 *= 1.0 - smoothstep(r0 - 0.16, r0 + 0.02, h);',
+    '    d1 *= 1.0 - smoothstep(r1 - 0.2, r1 + 0.04, h);',
+    '    d2 *= 1.0 - smoothstep(r2 - 0.14, r2 + 0.02, h);',
+    '    float dens = max(d0, max(d1, d2 * 0.9));',
+    '    float foot = falloff(0.1, 0.62, length(xz * vec2(1.0, 0.75))) * (1.0 - smoothstep(0.0, 0.42, h));',
+    '    dens = max(dens, foot);',
+    '    dens *= smoothstep(-0.02, 0.08, h);',
+    '    float edgeN = smoothstep(0.42, 0.7, n2);',
+    '    dens *= mix(1.0, edgeN, smoothstep(0.35, 0.9, h));',
+    '    vec3 w = carP - vec3(0.0, 1.38, -0.45);',
+    '    float wDens = falloff(0.08, 0.5, length(vec2(w.x * 1.2, w.z * 0.55)));',
+    '    wDens *= 1.0 - smoothstep(0.02, 0.48, abs(w.y));',
+    '    float wReach = 0.22 + n2 * 0.62;',
+    '    wDens *= 1.0 - smoothstep(wReach - 0.12, wReach + 0.08, w.y);',
+    '    wDens *= smoothstep(0.18, 0.62, uSheet);',
+    '    dens = max(dens, wDens * 0.42);',
+    '    float puff = 0.0;',
+    '    vec3 dL = carP - vec3(-0.9, 0.4, -1.53);',
+    '    puff = max(puff, falloff(0.04, 0.34, length(dL.xz)) * (1.0 - smoothstep(0.02, 0.55, dL.y)) * smoothstep(-0.1, 0.1, dL.y));',
+    '    vec3 dR = carP - vec3(0.9, 0.4, -1.53);',
+    '    puff = max(puff, falloff(0.04, 0.34, length(dR.xz)) * (1.0 - smoothstep(0.02, 0.55, dR.y)) * smoothstep(-0.1, 0.1, dR.y));',
+    '    vec3 dLr = carP - vec3(-0.9, 0.4, 1.56);',
+    '    puff = max(puff, falloff(0.04, 0.28, length(dLr.xz)) * (1.0 - smoothstep(0.02, 0.45, dLr.y)) * smoothstep(-0.1, 0.1, dLr.y) * 0.45);',
+    '    vec3 dRr = carP - vec3(0.9, 0.4, 1.56);',
+    '    puff = max(puff, falloff(0.04, 0.28, length(dRr.xz)) * (1.0 - smoothstep(0.02, 0.45, dRr.y)) * smoothstep(-0.1, 0.1, dRr.y) * 0.45);',
+    '    puff *= smoothstep(0.1, 0.45, uSheet);',
+    '    dens = max(dens, puff * 0.5);',
+    '    dens *= 1.0 - inBody;',
+    '    float heart = max(falloff(0.0, rad * 0.5, length(xz - c1)), falloff(0.0, rad * 0.4, length(xz - c0)) * 0.65);',
+    '    heart *= 1.0 - smoothstep(0.2, r1, h);',
+    '    float heat = clamp(dens * uFlick, 0.0, 1.0);',
+    '    float c = clamp(heat * 0.78 + heart * uFlick * 0.9, 0.0, 1.0);',
+    '    vec3 fire = mix(vec3(0.42, 0.02, 0.0), vec3(1.0, 0.26, 0.0), smoothstep(0.04, 0.22, c));',
+    '    fire = mix(fire, vec3(1.0, 0.58, 0.04), smoothstep(0.18, 0.42, c));',
+    '    fire = mix(fire, vec3(1.0, 0.86, 0.28), smoothstep(0.38, 0.66, c));',
+    '    fire = mix(fire, vec3(1.0, 0.97, 0.86), smoothstep(0.6, 0.88, c) * heart);',
+    '    float a = smoothstep(0.22, 0.62, dens) * uGain * uFlick * 0.72;',
+    '    a = clamp(a, 0.0, 0.7);',
+    '    col += fire * a * (1.0 - alpha);',
+    '    alpha += a * (1.0 - alpha);',
+    '    t += dt;',
+    '  }',
+    '  if (alpha < 0.03) discard;',
+    '  gl_FragColor = vec4(col / max(alpha, 0.0001), alpha);',
+    '}'
+  ].join('\n')
+});
+const failVol = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), volMat);
+failVol.position.copy(volPos);
+failVol.scale.copy(volScale);
+failVol.frustumCulled = false;
+failVol.visible = false;
+failVol.renderOrder = 2;
+failFireGroup.add(failVol);
+failVol.onBeforeRender = function (_r, _s, cam) {
+  volInv.copy(failVol.matrixWorld).invert();
+  volCam.copy(cam.position).applyMatrix4(volInv);
+  volMat.uniforms.uCamLocal.value.copy(volCam);
+  volMat.uniforms.uModelView.value.multiplyMatrices(cam.matrixWorldInverse, failVol.matrixWorld);
+  volMat.uniforms.uProj.value.copy(cam.projectionMatrix);
+};
+const groundMat = new THREE.ShaderMaterial({
+  uniforms: { uTime, uFlick, uSheet },
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  blending: THREE.NormalBlending,
+  toneMapped: true,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
+  vertexShader: [
+    'varying vec2 vUv;',
+    'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }'
+  ].join('\n'),
+  fragmentShader: [
+    'precision highp float;',
+    'varying vec2 vUv;',
+    'uniform float uTime, uFlick, uSheet;',
+    'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+    'float n2(vec2 p){',
+    '  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i), b = hash(i + vec2(1.0, 0.0)), c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+    '}',
+    'void main(){',
+    '  vec2 p = vUv - vec2(0.50, 0.66);',
+    '  float r = length(p * vec2(1.4, 1.2));',
+    '  float pool = 1.0 - smoothstep(0.015, 0.32, r);',
+    '  float side = 1.0 - smoothstep(0.0, 0.14, length(vUv - vec2(0.31, 0.64)));',
+    '  side += 1.0 - smoothstep(0.0, 0.14, length(vUv - vec2(0.69, 0.64)));',
+    '  float flickN = n2(vUv * 5.5 + vec2(uTime * 0.45, -uTime * 0.2));',
+    '  float pulse = 0.2 + 0.8 * uFlick;',
+    '  float a = (pool + side * 0.4 * pool) * pulse * uSheet * (0.75 + 0.25 * flickN);',
+    '  if (a < 0.025) discard;',
+    '  vec3 col = mix(vec3(0.5, 0.06, 0.0), vec3(1.0, 0.42, 0.05), clamp(uFlick, 0.0, 1.0));',
+    '  col = mix(col, vec3(1.0, 0.68, 0.22), (1.0 - smoothstep(0.0, 0.1, r)) * uFlick);',
+    '  gl_FragColor = vec4(col, clamp(a, 0.0, 0.55));',
+    '}'
+  ].join('\n')
+});
+const failGround = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 6.2), groundMat);
+failGround.rotation.x = -Math.PI / 2;
+failGround.position.set(0, 0.045, -0.85);
+failGround.frustumCulled = false;
+failGround.renderOrder = 1;
+failFireGroup.add(failGround);
 function makeFailSprite(map, blending) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, blending, opacity: 1 }));
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, depthTest: true, blending }));
   s.frustumCulled = false;
   return s;
 }
-function addFailFlame(parent, x, y, z, opt) {
-  opt.x = x; opt.y = y; opt.z = z; opt.ft = Math.random() * 8;
-  const s = makeFailSprite(failBodyTex[opt.frame % FAIL_FRAMES], THREE.NormalBlending);
-  s.material.depthTest = false;
-  s.position.set(x, y, z); s.userData = opt; s.renderOrder = opt.soft || opt.base ? 2 : 3; parent.add(s); failBodies.push(s);
-  if (opt.core) {
-    const c = makeFailSprite(failCoreTex[(opt.frame + 2) % FAIL_FRAMES], THREE.AdditiveBlending);
-    c.material.depthTest = false;
-    const cu = Object.assign({}, opt, { h: opt.h * .78, w: opt.w * .84, ft: Math.random() * 8 });
-    c.position.set(x, y, z); c.userData = cu; c.renderOrder = 4; parent.add(c); failCores.push(c);
-  }
-}
-let failFi = 0;
-function layFail(parent, x, y, z, h, w, delay, extra) {
-  addFailFlame(parent, x, y, z, Object.assign({
-    frame: failFi++, h: h * (.9 + Math.random() * .16), w: w * (.92 + Math.random() * .14),
-    delay: delay + Math.random() * .12, seed: Math.random() * 10,
-    f1: 7 + Math.random() * 5, f2: 1.5 + Math.random() * 1.1,
-    base: false, soft: false, core: false, sway: .025 + Math.random() * .02
-  }, extra));
-}
-/* 同一位置叠两三张很宽的火，盖住整辆车，看起来是一团而不是几条火舌 */
-layFail(failFireGroup, 0, .08, -.7, 3.45, 6.6, .02, { soft: true });
-layFail(failFireGroup, 0, .22, -.65, 3.15, 5.8, .08, { core: true });
-layFail(failFireGroup, .02, .4, -.55, 2.7, 5.0, .14, { soft: true });
-layFail(hoodFire, 0, .04, -.55, 1.9, 2.4, .04, { soft: true });
-function addFailGlow(x, y, z, sc, delay) {
-  const s = makeFailSprite(glowTex, THREE.AdditiveBlending);
-  s.material.color.setHex(0xff5a14); s.material.opacity = .14;
-  s.position.set(x, y, z); s.userData = { s: sc, delay, seed: Math.random() * 8 };
-  failFireGroup.add(s); failGlows.push(s);
-}
-addFailGlow(0, 1.25, -1.65, 2.1, .08);
-addFailGlow(0, 1.7, .15, 2.4, .45);
-addFailGlow(0, 1.15, 1.85, 1.9, .75);
-addFailGlow(.15, .55, -.2, 2.6, .15);
-for (let i = 0; i < 24; i++) {
+const failSmokes = [], failEmbers = [];
+for (let i = 0; i < 16; i++) {
   const s = makeFailSprite(failSmokeTex, THREE.NormalBlending);
-  s.userData = { age: Math.random() * 2.2, dur: 2.2 + Math.random() * 1.4, seed: Math.random() * 20, x0: (Math.random() - .5) * 1.5, z0: -1.8 + Math.random() * 3.8, y0: 1.65 + Math.random() * .55, drift: (Math.random() - .5) * .5, size: .9 + Math.random() * 1.15, spin: (Math.random() - .5) * .5 };
-  s.visible = false; failFireGroup.add(s); failSmokes.push(s);
+  s.material.depthTest = false;
+  s.userData = { age: Math.random() * 2.2, dur: 2.2, seed: Math.random() * 20 };
+  s.renderOrder = 5;
+  s.visible = false;
+  failFx.add(s); failSmokes.push(s);
 }
-for (let i = 0; i < 26; i++) {
+for (let i = 0; i < 12; i++) {
   const s = makeFailSprite(failEmberTex, THREE.AdditiveBlending);
   s.userData = { age: Math.random(), dur: .01, seed: Math.random() * 20 };
-  s.renderOrder = 4; s.visible = false; failFireGroup.add(s); failEmbers.push(s);
+  s.renderOrder = 7;
+  s.visible = false;
+  failFx.add(s); failEmbers.push(s);
 }
-const failLightA = new THREE.PointLight(0xff5a12, 0, 7.5, 1.5); failLightA.position.set(0, 1.15, -1.55); CAR.group.add(failLightA);
-const failLightB = new THREE.PointLight(0xff2a08, 0, 6.5, 1.7); failLightB.position.set(.1, 1.35, .85); CAR.group.add(failLightB);
+const failLightA = new THREE.PointLight(0xff5c14, 0, 12, 1.6); failLightA.position.set(0, 1.2, -2.05); CAR.group.add(failLightA);
+const failLightB = new THREE.PointLight(0xff3a0c, 0, 8, 1.6); failLightB.position.set(0, 1.4, -0.35); CAR.group.add(failLightB);
+const _failWorld = new THREE.Vector3();
+const _failNdc = new THREE.Vector3();
 function setFailFire(on) {
   failFireOn = on;
   failFireGroup.visible = on;
@@ -2036,115 +2176,133 @@ function setFailFire(on) {
   smokeSprites.forEach(s => s.visible = !on);
   if (on) smokeGroup.visible = false;
   else if (flameGroup.visible) smokeGroup.visible = true;
-  $('fireOverlay').classList.toggle('heat', on);
+  $('fireOverlay').classList.remove('heat');
   if (!on) {
     fireLight.color.setHex(0xff7722);
     fireLight.distance = 22;
     failLightA.intensity = 0;
     failLightB.intensity = 0;
+    failVol.visible = false;
+    failFx.visible = false;
   }
-}
-function stepFailSprite(s, frames, hot, t, dt) {
-  const u = s.userData;
-  const grow = clamp((burnT - u.delay) / .55, 0, 1);
-  u.ft += dt * (hot ? 14 : 11);
-  const fr = (Math.floor(u.ft) + u.frame) % FAIL_FRAMES;
-  if (u._fr !== fr) { u._fr = fr; s.material.map = frames[fr]; }
-  const flick = .84 + .16 * Math.sin(t * u.f1 + u.seed);
-  const breath = .94 + .06 * Math.sin(t * u.f2 + u.seed * 2);
-  const h = Math.max(.01, u.h * grow * flick * breath);
-  const w = Math.max(.01, u.w * grow * (u.base ? 1.12 : 1) * (.97 + .05 * flick));
-  const sway = Math.sin(t * u.f1 * .35 + u.seed) * u.sway * grow;
-  s.position.set(u.x + sway, u.y + h * .5, u.z);
-  s.scale.set(w, h, 1);
-  s.material.rotation = Math.sin(t * 1.4 + u.seed) * .03;
-  const op = hot ? .28 : (u.base ? .88 : u.soft ? .8 : .86);
-  s.material.opacity = op * Math.min(1, grow * 1.25) * (.82 + .18 * flick);
-  s.visible = grow > .03;
 }
 function updateFailFire(dt, t) {
   const spread = clamp(burnT / 2.1, 0, 1);
-  failBodies.forEach(s => stepFailSprite(s, failBodyTex, false, t, dt));
-  failCores.forEach(s => stepFailSprite(s, failCoreTex, true, t, dt));
-  failGlows.forEach(s => {
-    const u = s.userData;
-    const g = clamp((burnT - u.delay) / .6, 0, 1);
-    const f = .82 + .18 * Math.sin(t * 14 + u.seed);
-    const sc = u.s * Math.max(g, .01) * f;
-    s.scale.set(sc, sc * .8, 1);
-    s.material.opacity = .13 * g * f;
-    s.visible = g > .04;
-  });
+  const flick = 0.84 + Math.sin(t * 9.5) * 0.08 + Math.sin(t * 3.1) * 0.05;
+  uTime.value = t;
+  uFlick.value = flick;
+  uGain.value = clamp(burnT / 0.65, 0, 1);
+  uSheet.value = spread;
+  CAR.group.updateMatrixWorld(true);
   failSmokes.forEach(s => {
     const u = s.userData;
     u.age += dt;
     if (u.age >= u.dur) {
-      u.age = 0; u.dur = 2.3 + Math.random() * 1.6;
-      u.x0 = (Math.random() - .5) * 1.6; u.z0 = -2.05 + Math.random() * 4.2;
-      u.y0 = 1.55 + Math.random() * .7; u.drift = (Math.random() - .5) * .6;
-      u.size = .85 + Math.random() * 1.25; u.spin = (Math.random() - .5) * .55;
+      u.age = 0;
+      u.dur = 1.9 + Math.random() * 1.2;
+      u.x0 = .05 + Math.random() * .55;
+      u.z0 = -1.45 + (Math.random() - .5) * .35;
+      u.y0 = 2.35 + Math.random() * .4;
+      u.size = .9 + Math.random() * .85;
+      u.spin = (Math.random() - .5) * .4;
     }
     const k = u.age / u.dur;
-    if (spread < .04) { s.visible = false; return; }
-    const sway = Math.sin(t * .75 + u.seed) * (.12 + k * .5) + u.drift * k;
-    s.position.set(u.x0 + sway, u.y0 + k * (4.6 + u.size * 1.8), u.z0 + Math.cos(t * .55 + u.seed) * k * .35);
-    const sc = (u.size * 1.35 + k * 3.8) * (.55 + .45 * spread);
-    s.scale.set(sc, sc * .8, 1);
+    if (spread < .06) { s.visible = false; return; }
+    _failWorld.set(
+      u.x0 + k * 1.35 + Math.sin(t * .55 + u.seed) * k * .35,
+      u.y0 + k * (4.4 + u.size),
+      u.z0 + Math.sin(t * .35 + u.seed) * k * .85
+    ).applyMatrix4(CAR.group.matrixWorld);
+    s.position.copy(_failWorld);
+    const sc = Math.min(4.2, (.75 + k * 2.4) * u.size);
+    s.scale.set(sc * (1.05 + k * .8), sc * (1.15 + k * .25), 1);
     s.material.rotation = u.spin * k;
+    s.material.blending = THREE.NormalBlending;
     const fade = Math.sin(Math.min(1, k) * Math.PI);
-    s.material.opacity = .5 * fade * (.4 + .6 * spread);
-    s.material.color.setRGB(.32 + k * .48, .26 + k * .5, .22 + k * .52);
-    s.visible = fade > .03;
+    const dark = .07 + k * .5;
+    s.material.color.setRGB(dark, dark * .98, dark * .95);
+    s.material.opacity = fade * .86 * (.7 + .3 * spread);
+    s.visible = s.material.opacity > .03;
   });
   failEmbers.forEach(s => {
     const u = s.userData;
     u.age += dt;
     if (u.age >= u.dur) {
-      u.age = 0; u.dur = .65 + Math.random() * .95;
-      u.x = (Math.random() - .5) * 1.8; u.z = -2.2 + Math.random() * 4.5; u.y = .35 + Math.random() * 1.35;
-      u.vx = (Math.random() - .5) * .9; u.vy = 1.6 + Math.random() * 2.4; u.vz = (Math.random() - .5) * .9;
-      u.size = .09 + Math.random() * .12;
+      u.age = 0;
+      u.dur = .7 + Math.random() * .85;
+      u.x = .05 + Math.random() * .5;
+      u.z = -1.55 + (Math.random() - .5) * .4;
+      u.y = 2.15 + Math.random() * .55;
+      u.vx = .25 + Math.random() * .5;
+      u.vy = 1.5 + Math.random() * 1.6;
+      u.vz = (Math.random() - .5) * .3;
+      u.size = .1 + Math.random() * .08;
     }
     const k = u.age / u.dur;
-    if (spread < .08) { s.visible = false; return; }
-    s.position.set(u.x + u.vx * u.age, u.y + u.vy * u.age - .4 * u.age * u.age, u.z + u.vz * u.age);
-    const sc = u.size * (1 - k * .35);
+    if (spread < .1) { s.visible = false; return; }
+    _failWorld.set(u.x + u.vx * u.age, u.y + u.vy * u.age - .35 * u.age * u.age, u.z + u.vz * u.age).applyMatrix4(CAR.group.matrixWorld);
+    s.position.copy(_failWorld);
+    const sc = u.size * (1 - k * .3);
     s.scale.set(sc, sc, 1);
     const hot = 1 - k;
-    s.material.color.setRGB(1, .32 + hot * .62, .04 + hot * .5);
-    s.material.opacity = (k < .08 ? k / .08 : 1 - (k - .08) / .92) * .95 * spread;
+    s.material.color.setRGB(1, .28 + hot * .6, .03 + hot * .35);
+    s.material.opacity = (k < .08 ? k / .08 : 1 - (k - .08) / .92) * .9 * spread;
     s.visible = s.material.opacity > .04;
   });
-  const flick = .8 + Math.sin(t * 17.2) * .1 + Math.sin(t * 43) * .07 + Math.sin(t * 8.1) * .05;
-  const n = Math.max(.6, flick);
-  fireLight.intensity = (12 + spread * 14) * n;
-  fireLight.distance = 18;
-  fireLight.color.setRGB(1, .36 + Math.sin(t * 12.4) * .07, .05);
-  CAR.group.updateMatrixWorld(true);
-  fireLight.position.copy(new THREE.Vector3(Math.sin(t * 6.5) * .3, 1.4 + Math.sin(t * 9) * .12, -.4).applyMatrix4(CAR.group.matrixWorld));
-  failLightA.intensity = (4.5 + spread * 6) * (1.25 - n * .4);
-  failLightB.intensity = (3 + spread * 4.5) * n;
+  fireLight.intensity = (5 + spread * 6) * flick;
+  fireLight.distance = 9;
+  fireLight.color.setRGB(1, .34 + flick * .12, .04);
+  fireLight.position.copy(_failWorld.set(0, 1.3, -1.95).applyMatrix4(CAR.group.matrixWorld));
+  failLightA.intensity = (5 + spread * 7) * flick;
+  failLightA.color.setRGB(1, .32 + flick * .1, .03);
+  failLightB.intensity = (1.6 + spread * 2.4) * flick;
   return spread;
 }
-const heatRT = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true });
-heatRT.texture.colorSpace = THREE.SRGBColorSpace;
-const heatScene = new THREE.Scene();
+const sceneRT = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true, depthTexture: new THREE.DepthTexture() });
+sceneRT.texture.colorSpace = THREE.SRGBColorSpace;
+sceneRT.depthTexture.format = THREE.DepthFormat;
+sceneRT.depthTexture.type = THREE.UnsignedShortType;
+sceneRT.depthTexture.magFilter = THREE.NearestFilter;
+sceneRT.depthTexture.minFilter = THREE.NearestFilter;
+const depthCopyRT = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: false, stencilBuffer: false });
+depthCopyRT.texture.colorSpace = THREE.LinearSRGBColorSpace;
+depthCopyRT.texture.minFilter = THREE.NearestFilter;
+depthCopyRT.texture.magFilter = THREE.NearestFilter;
+depthCopyRT.texture.generateMipmaps = false;
+const depthCopyMat = new THREE.ShaderMaterial({
+  uniforms: { tDepth: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
+  fragmentShader: 'precision highp float; uniform sampler2D tDepth; varying vec2 vUv; void main(){ gl_FragColor=vec4(texture2D(tDepth,vUv).r,0.,0.,1.); }',
+  depthTest: false, depthWrite: false, toneMapped: false
+});
+const depthCopyQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), depthCopyMat);
+depthCopyQuad.position.z = -1; depthCopyQuad.frustumCulled = false;
+const depthCopyScene = new THREE.Scene(); depthCopyScene.add(depthCopyQuad);
 const heatCam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+const heatScene = new THREE.Scene();
 const heatMat = new THREE.ShaderMaterial({
-  uniforms: { tDiffuse: { value: null }, tNoise: { value: failNoiseTex }, time: { value: 0 } },
+  uniforms: {
+    tDiffuse: { value: null },
+    tNoise: { value: failNoiseTex },
+    time: { value: 0 },
+    uFire: { value: new THREE.Vector2(.5, .45) }
+  },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
   fragmentShader: [
     'precision highp float;',
-    'uniform sampler2D tDiffuse; uniform sampler2D tNoise; uniform float time;',
+    'uniform sampler2D tDiffuse; uniform sampler2D tNoise; uniform float time; uniform vec2 uFire;',
     'varying vec2 vUv;',
     'void main(){',
     '  vec3 src = texture2D(tDiffuse, vUv).rgb;',
-    '  float hot = clamp(dot(src, vec3(.35,.5,.12)) - .22, 0., 1.);',
-    '  vec2 nUv = vec2(vUv.x * 1.7, vUv.y * 2.3 - time * .18);',
+    '  float hot = clamp(dot(src, vec3(.22, .58, .12)) - .16, 0., 1.);',
+    '  vec2 nUv = vec2(vUv.x * 2.2, vUv.y * 2.6 - time * .22);',
     '  float n = texture2D(tNoise, nUv).r - .5;',
-    '  float n2 = texture2D(tNoise, nUv * 1.8 + vec2(.2, time * .07)).g - .5;',
-    '  float mask = smoothstep(.85, .12, length((vUv - vec2(.5, .48)) * vec2(1.15, 1.)));',
-    '  vec2 off = vec2(n * .7 + n2 * .3, n2 * .85 + n * .2) * (.007 + hot * .012) * mask;',
+    '  float n2 = texture2D(tNoise, nUv * 1.7 + vec2(.17, time * .08)).g - .5;',
+    '  vec2 d = vUv - uFire;',
+    '  d.x *= 1.15; d.y *= .72;',
+    '  float region = 1.0 - smoothstep(.04, .22, length(d));',
+    '  float mask = region * (.2 + .8 * hot);',
+    '  vec2 off = vec2(n * .7 + n2 * .3, n2 * .85 + n * .15) * (.0035 + hot * .007) * mask;',
     '  gl_FragColor = vec4(texture2D(tDiffuse, vUv + off).rgb, 1.);',
     '}'
   ].join('\n'),
@@ -2152,18 +2310,51 @@ const heatMat = new THREE.ShaderMaterial({
 });
 const heatQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), heatMat);
 heatQuad.position.z = -1; heatQuad.frustumCulled = false; heatScene.add(heatQuad);
+function fitFailTargets(w, h) {
+  if (sceneRT.width === w && sceneRT.height === h) return;
+  sceneRT.setSize(w, h);
+  depthCopyRT.setSize(w, h);
+  sceneRT.texture.colorSpace = THREE.SRGBColorSpace;
+  depthCopyRT.texture.colorSpace = THREE.LinearSRGBColorSpace;
+}
 function renderView() {
   if (!failFireOn) { renderer.render(scene, camera); return; }
   const w = renderer.domElement.width | 0, h = renderer.domElement.height | 0;
   if (w < 2 || h < 2) { renderer.render(scene, camera); return; }
-  if (heatRT.width !== w || heatRT.height !== h) heatRT.setSize(w, h);
-  heatRT.texture.colorSpace = THREE.SRGBColorSpace;
-  renderer.setRenderTarget(heatRT);
+  fitFailTargets(w, h);
+  failVol.visible = false;
+  failFx.visible = true;
+  renderer.setRenderTarget(sceneRT);
   renderer.render(scene, camera);
-  renderer.setRenderTarget(null);
-  heatMat.uniforms.tDiffuse.value = heatRT.texture;
-  heatMat.uniforms.time.value = clock.elapsedTime;
   const prevTone = renderer.toneMapping;
+  renderer.toneMapping = THREE.NoToneMapping;
+  depthCopyMat.uniforms.tDepth.value = sceneRT.depthTexture;
+  renderer.setRenderTarget(depthCopyRT);
+  renderer.render(depthCopyScene, heatCam);
+  renderer.toneMapping = prevTone;
+  volMat.uniforms.tDepth.value = depthCopyRT.texture;
+  volMat.uniforms.uRes.value.set(w, h);
+  volMat.uniforms.uNear.value = camera.near;
+  volMat.uniforms.uFar.value = camera.far;
+  failVol.visible = true;
+  const prevAuto = renderer.autoClear;
+  renderer.autoClear = false;
+  renderer.setRenderTarget(sceneRT);
+  renderer.render(failVol, camera);
+  failVol.visible = false;
+  failFx.visible = true;
+  renderer.setRenderTarget(sceneRT);
+  renderer.render(failFx, camera);
+  failFx.visible = false;
+  renderer.autoClear = prevAuto;
+  camera.updateMatrixWorld();
+  _failWorld.set(0, 2.15, -1.8).applyMatrix4(CAR.group.matrixWorld);
+  _failNdc.copy(_failWorld).project(camera);
+  if (_failNdc.z < 1) heatMat.uniforms.uFire.value.set(_failNdc.x * .5 + .5, _failNdc.y * .5 + .5);
+  else heatMat.uniforms.uFire.value.set(-2, -2);
+  renderer.setRenderTarget(null);
+  heatMat.uniforms.tDiffuse.value = sceneRT.texture;
+  heatMat.uniforms.time.value = clock.elapsedTime;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.render(heatScene, heatCam);
   renderer.toneMapping = prevTone;
@@ -2350,7 +2541,7 @@ function fireGameOver(reason) {
   particleMode = 'fire';
   setFlames(true);
   setFailFire(true);
-  $('fireOverlay').style.opacity = .3;
+  $('fireOverlay').style.opacity = .04;
   $('seqBox').style.display = 'none';
   $('fireEndText').textContent = reason + '车辆起火自燃，你失去了任何挽回生命的手段。';
   $('banner').textContent = '🔥 车辆起火自燃！';
@@ -2923,7 +3114,7 @@ function step(dt, t) {
     }
     setChar(clamp(burnT / 3, 0, failFireOn ? .7 : .92));
     $('fireOverlay').style.opacity = failFireOn
-      ? Math.min(.4, .1 + spread * .2 + Math.sin(t * 17) * .025)
+      ? .03 + spread * .03
       : Math.min(.55, .2 + spread * .4);
   }
   updateParticles(dt, G.px + G.hx * 2.85, .8, G.pz + G.hz * 2.85);
