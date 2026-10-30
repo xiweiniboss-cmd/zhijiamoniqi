@@ -2628,7 +2628,7 @@ function setFlames(on) {
     fireLight.position.copy(new THREE.Vector3(0, 1.6, -.6).applyMatrix4(CAR.group.matrixWorld));
     fireLight.distance = 22;
   }
-  if (!on) { endParkScene(); survivor.visible = false; G.survivorCam = false; $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
+  if (!on) { endParkScene(); survivor.visible = false; G.survivorCam = false; camera.fov = fovFor(); camera.updateProjectionMatrix(); $('speedBox').style.visibility = ''; fireLight.intensity = 0; burnT = 0; if (charMats) setChar(0); }
 }
 /* ================= 游戏逻辑 ================= */
 const CRUISE_V = 18.3, RUN_ACCEL = 6.0, TRIGGER_DIST = 200;
