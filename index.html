@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- zhijia v57 -->
+<!-- zhijia v58 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -479,6 +479,8 @@
 
 <script type="module">
 import * as THREE from './lib/three.module.js';
+import { GLTFLoader } from './lib/GLTFLoader.js';
+import { clone as cloneSkinned } from './lib/SkeletonUtils.js';
 
 /* ================= 工具 ================= */
 const $ = id => document.getElementById(id);
@@ -2736,10 +2738,14 @@ function buildFigure(opt) {
   g.userData.age = 0;
   g.userData.mode = '';
   g.userData.play = mode => { g.userData.mode = mode; g.userData.age = 0; g.visible = true; spot.castShadow = true; };
-  g.userData.stop = () => { g.userData.mode = ''; g.userData.age = 0; g.visible = false; spot.castShadow = false; resetPose(); };
+  g.userData.stop = () => {
+    g.userData.mode = ''; g.userData.age = 0; g.visible = false; spot.castShadow = false; resetPose();
+    const M = g.userData.model; if (M) { M.mixer.stopAllAction(); M.cur = null; }
+  };
   g.userData.tick = dt => {
     if (!g.visible || !g.userData.mode) return;
     g.userData.age += dt;
+    if (figModelTick(g, dt)) return;
     (g.userData.mode === 'escape' ? poseEscape : poseRelief)(parts, g.userData.age);
   };
   resetPose();
@@ -2802,8 +2808,92 @@ function poseRelief(p, age) {
   p.spine.rotation.set(-.08 * up + Math.sin(age * 1.7) * .02, 0, Math.sin(age * 1.25) * .025);
   p.head.rotation.set(.18 * (1 - up) + nod * .13 * up, Math.sin(age * 1.35) * .07 * up, nod * .035 * up);
 }
+/* 结局人物：加载带骨骼动画的人物模型（Quaternius「Casual Character」，CC0）。
+   模型没加载完时退回上面的关节人；加载完后关节人只负责算位置，画面用模型。 */
+const FIG_MODEL_URL = 'lib/models/casual.glb';
+const FIG_H = 1.74;
+let figModelSrc = null;
+const figWaiting = [];
+new GLTFLoader().load(FIG_MODEL_URL, gltf => {
+  figModelSrc = gltf;
+  figWaiting.splice(0).forEach(f => f());
+}, undefined, e => console.warn('figure model load failed', e));
+function attachModel(g, opt) {
+  const go = () => {
+    const root = cloneSkinned(figModelSrc.scene);
+    /* 包围盒在蒙皮前不准，用头部骨骼的高度来定比例 */
+    root.updateMatrixWorld(true);
+    let top = 0;
+    root.traverse(o => { if (o.isBone && o.name === 'Head') top = o.getWorldPosition(new THREE.Vector3()).y; });
+    const sc = FIG_H * .86 / (top || 1);  // 头部骨骼在头底，约占身高 86%
+    root.scale.setScalar(sc);
+    const holder = new THREE.Group(); holder.add(root);
+    const mats = new Map();
+    root.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+      const fix = m => {
+        if (!mats.has(m)) {
+          const c = m.clone();
+          const tint = opt.tint && opt.tint[m.name];
+          if (tint !== undefined) c.color.setHex(tint);
+          c.roughness = .62; c.metalness = 0;
+          mats.set(m, c);
+        }
+        return mats.get(m);
+      };
+      o.material = Array.isArray(o.material) ? o.material.map(fix) : fix(o.material);
+    });
+    g.add(holder);
+    const mixer = new THREE.AnimationMixer(root);
+    const clip = n => figModelSrc.animations.find(a => a.name.endsWith('|' + n));
+    const acts = {};
+    ['Idle', 'Idle_Neutral', 'Walk', 'Wave', 'Interact'].forEach(n => { const c = clip(n); if (c) acts[n] = mixer.clipAction(c); });
+    let hand = null;
+    root.traverse(o => { if (o.isBone && o.name.replace('.', '') === 'WristR') hand = o; });  // 挥手的是左手，手机拿在右手
+    if (opt.phone && hand) {
+      const phone = new THREE.Mesh(new THREE.BoxGeometry(.08, .16, .016), new THREE.MeshStandardMaterial({ color: 0x15181e, roughness: .35, metalness: .4, emissive: 0x6fa8ff, emissiveIntensity: 1.1 }));
+      root.updateMatrixWorld(true);
+      const ws = new THREE.Vector3(); hand.getWorldScale(ws);
+      phone.scale.setScalar(1 / ws.x);
+      phone.position.set(0, .1, .05).multiplyScalar(1 / ws.x);
+      hand.add(phone);
+      if (g.userData.glow) { g.userData.glow.parent.remove(g.userData.glow); phone.add(g.userData.glow); g.userData.glow.position.set(0, 0, 0); }
+    }
+    g.userData.model = { holder, mixer, acts, cur: null };
+    g.userData.parts.hips.visible = false;
+  };
+  if (figModelSrc) go(); else figWaiting.push(go);
+}
+function figAct(g, name, fade = .35) {
+  const M = g.userData.model; if (!M || M.cur === name || !M.acts[name]) return;
+  const next = M.acts[name];
+  next.reset(); next.setEffectiveWeight(1); next.play();
+  if (M.cur && M.acts[M.cur]) M.acts[M.cur].crossFadeTo(next, fade, false);
+  M.cur = name;
+}
+function figModelTick(g, dt) {
+  const M = g.userData.model; if (!M) return false;
+  const age = g.userData.age, p = g.userData.parts;
+  if (g.userData.mode === 'escape') {
+    /* 从车门边快步走开，走到人行道上转过身挥手 */
+    const u = figSmooth(age, 0, 2.3);
+    M.holder.position.set(-.9 + 1.0 * u, 0, -1.7 + 1.1 * u);
+    M.holder.rotation.y = figSamp([[0, .75], [2.1, .75], [2.7, .3]], age);
+    figAct(g, age < 2.25 ? 'Walk' : age < 6.2 ? 'Wave' : 'Idle');
+  } else {
+    /* 下车后往路边走两步，回头挥手，然后站着等救援 */
+    M.holder.position.set(0, 0, figSamp([[0, -.3], [.9, .15]], age));
+    M.holder.rotation.y = figSamp([[0, .1], [.9, .25]], age);
+    figAct(g, age < .9 ? 'Walk' : age < 4.6 ? 'Wave' : 'Idle');
+  }
+  M.mixer.update(dt);
+  return true;
+}
 const survivor = buildFigure({ shirt: 0x3c8fd4, pants: 0x1d2838, shoe: 0xe6e2da, sleeve: 'long', fillI: 1.8, spotI: 7 });
 const caller = buildFigure({ shirt: 0xf4f6f8, pants: 0x2a4a84, shoe: 0x2c241e, sleeve: 'short', phone: true, fill: 0xe4ecff, fillI: 1.6, spotI: 9 });
+attachModel(survivor, { tint: { LightBrown: 0x3c8fd4, LightBlue: 0x1d2838 } });
+attachModel(caller, { phone: true, tint: { LightBrown: 0xe9edf1, LightBlue: 0x2a4a84 } });
 function setChar(k) {
   if (!charMats) {
     const set = new Set(); CAR.exterior.forEach(m => { (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => { if (x && x.color) set.add(x); }); });
@@ -3513,7 +3603,7 @@ function step(dt, t) {
     if (caller.visible) caller.userData.tick(dt);
     if (caller.userData.glow) caller.userData.glow.material.opacity = .4 + Math.sin(t * 3) * .12;
     const k = Math.min(t - (G.parkT0 ??= t), 6);
-    camera.position.set(portrait ? 3.4 : 2.8, (portrait ? 2.0 : 1.7), PARK_POSE.z + 10 - k * .08);
+    camera.position.set(portrait ? 3.4 : 4.0, (portrait ? 2.0 : 1.55), PARK_POSE.z + (portrait ? 10 : 8) - k * .08);
     camera.lookAt(portrait ? 6.1 : 6.9, portrait ? -1.7 : .5, PARK_POSE.z + 3);
     if (!portrait) camera.rotateY(-.24);
   } else if (G.survivorCam) {
