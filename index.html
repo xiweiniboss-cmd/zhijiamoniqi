@@ -2969,7 +2969,7 @@ function survive() {
   $('controls').style.display = 'none'; $('distBox').style.display = 'none'; $('speedBox').style.visibility = 'hidden';
   /* 人坐在车旁的马路牙子上（远侧人行道路沿 z≈-311.5），离车 ~5m */
   survivor.position.set(G.px + 3.9, .15, -311.62);
-  $('banner').className = ''; $('banner').textContent = '✅ 已逃出车外 · 已离开着火车辆';
+  $('banner').className = ''; $('banner').textContent = '✅ 已逃出车外 · 正在拨打119/122';
   survivor.rotation.y = .55;
   survivor.userData.play('escape'); G.survivorCam = true;
   $('surviveVideo').classList.add('hide'); $('btnSvVideo').style.display = '';
@@ -3014,7 +3014,7 @@ function startParkScene() {
   caller.position.set(7.75, .13, PARK_POSE.z + 2.2); caller.rotation.y = -.75;
   caller.userData.play('relief');
   warnTri.position.set(PARK_POSE.x, 0, PARK_POSE.z + 6);
-  $('banner').className = ''; $('banner').textContent = '✅ 已靠右停车 · 双闪已开 · 人已安全下车';
+  $('banner').className = ''; $('banner').textContent = '✅ 已靠右停车 · 双闪已开 · 正在报警求助';
   $('vignette').className = ''; $('controls').style.display = 'none'; $('forceBox').style.display = 'none'; $('distBox').style.display = 'none';
   $('speedBox').style.visibility = 'hidden';
 }
