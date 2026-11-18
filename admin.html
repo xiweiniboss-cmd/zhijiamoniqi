@@ -73,6 +73,9 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const fmtT = ts => { if (!ts) return '—'; const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
 const RESULT = { win: '🏆 刹停胜利', snap: '💥 踏板断裂', burned: '🔥 车辆起火', news: '📰 新闻播报', survive: '🚪 逃生成功' };
 
+// TODO(安全)：管理密钥目前拼在 URL 的 ?key= 里（会进浏览器历史/代理日志）。
+// 后端 deepseekchatwebtest 的 adminAuth 对 /api/admin/zhijia/* 只认 ?key= 或后台 Cookie，还不支持请求头；
+// 等后端支持 X-Admin-Key 之类的请求头（并在 CORS 里放行）后再改成用 header 传。
 async function api(path, opts) {
   const r = await fetch(API + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(KEY), opts);
   return r.json().catch(() => ({}));
@@ -84,10 +87,10 @@ async function post(path, body) {
 async function loadBoard() {
   const res = await api('/api/admin/zhijia/board');
   if (!res.ok) { $('boardStat').innerHTML = '<span class="err">' + esc(res.error || '加载失败') + '</span>'; return; }
-  $('boardStat').innerHTML = '共 <b>' + res.count + '</b> 名上榜玩家';
+  $('boardStat').innerHTML = '共 <b>' + esc(res.count) + '</b> 名上榜玩家';
   let h = '<tr><th>#</th><th>昵称</th><th>刹车用时</th><th>余量</th><th>反应</th><th>得分</th><th>时间</th><th>设备</th><th>IP</th><th></th></tr>';
   res.board.forEach((e, i) => {
-    h += '<tr><td>' + (i + 1) + '</td><td>' + esc(e.n) + '</td><td>' + (+e.t).toFixed(2) + 's</td><td>' + (+e.m).toFixed(1) + 'm</td><td>' + (e.r >= 0 ? (+e.r).toFixed(2) + 's' : '—') + '</td><td>' + e.s + '</td><td>' + fmtT(e.ts) + '</td><td>' + esc(String(e.d).slice(0, 10)) + '</td><td>' + esc(e.ip) + '</td><td><button class="btn-mini" data-del-board="' + esc(e.d) + '">删除</button></td></tr>';
+    h += '<tr><td>' + (i + 1) + '</td><td>' + esc(e.n) + '</td><td>' + esc((+e.t).toFixed(2)) + 's</td><td>' + esc((+e.m).toFixed(1)) + 'm</td><td>' + (e.r >= 0 ? esc((+e.r).toFixed(2)) + 's' : '—') + '</td><td>' + esc(e.s) + '</td><td>' + esc(fmtT(e.ts)) + '</td><td>' + esc(String(e.d).slice(0, 10)) + '</td><td>' + esc(e.ip) + '</td><td><button class="btn-mini" data-del-board="' + esc(e.d) + '">删除</button></td></tr>';
   });
   $('boardTable').innerHTML = h;
   document.querySelectorAll('[data-del-board]').forEach(b => b.addEventListener('click', async () => {
@@ -100,10 +103,10 @@ async function loadBoard() {
 async function loadRecords() {
   const res = await api('/api/admin/zhijia/records');
   if (!res.ok) { $('recStat').innerHTML = '<span class="err">' + esc(res.error || '加载失败') + '</span>'; return; }
-  $('recStat').innerHTML = '最近 <b>' + res.count + '</b> 局 · 其中胜利 <b>' + res.winCount + '</b> 局';
+  $('recStat').innerHTML = '最近 <b>' + esc(res.count) + '</b> 局 · 其中胜利 <b>' + esc(res.winCount) + '</b> 局';
   let h = '<tr><th>时间</th><th>昵称</th><th>难度</th><th>结局</th><th>刹车用时</th><th>反应</th><th>最大力度</th><th>最高速</th><th>余量</th><th>IP</th><th></th></tr>';
   res.records.forEach(e => {
-    h += '<tr><td>' + fmtT(e.ts) + '</td><td>' + esc(e.n) + '</td><td>' + (e.mode === 'easy' ? '简单' : '困难') + '</td><td>' + (RESULT[e.result] || e.result) + '</td><td>' + (e.t > 0 ? (+e.t).toFixed(2) + 's' : '—') + '</td><td>' + (e.r >= 0 ? (+e.r).toFixed(2) + 's' : '—') + '</td><td>' + Math.round(e.f) + 'N</td><td>' + Math.round(e.v) + 'km/h</td><td>' + (+e.m).toFixed(1) + 'm</td><td>' + esc(e.ip) + '</td><td><button class="btn-mini" data-del-rec="' + esc(e.key) + '">删除</button></td></tr>';
+    h += '<tr><td>' + esc(fmtT(e.ts)) + '</td><td>' + esc(e.n) + '</td><td>' + (e.mode === 'easy' ? '简单' : '困难') + '</td><td>' + esc(RESULT[e.result] || e.result) + '</td><td>' + (e.t > 0 ? esc((+e.t).toFixed(2)) + 's' : '—') + '</td><td>' + (e.r >= 0 ? esc((+e.r).toFixed(2)) + 's' : '—') + '</td><td>' + esc(Math.round(e.f)) + 'N</td><td>' + esc(Math.round(e.v)) + 'km/h</td><td>' + esc((+e.m).toFixed(1)) + 'm</td><td>' + esc(e.ip) + '</td><td><button class="btn-mini" data-del-rec="' + esc(e.key) + '">删除</button></td></tr>';
   });
   $('recTable').innerHTML = h;
   document.querySelectorAll('[data-del-rec]').forEach(b => b.addEventListener('click', async () => {

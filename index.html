@@ -489,12 +489,12 @@ const KMH = 3.6;
 
 /* ================= 声音（WebAudio 合成） ================= */
 const AU = {
-  ctx:null, master:null, engineOsc:null, engineGain:null, muted:false, alarmTimer:null, screechGain:null, screamOsc:null, screamGain:null, brakeGain:null,
+  ctx:null, master:null, engineOsc:null, engineGain:null, muted:false, alarmTimer:null, screechGain:null, screamOsc:null, screamGain:null, brakeGain:null, sfxGain:null, sfxBuf:{}, sfxSrc:{},
   init(){
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
     const ctx = this.ctx = new C();
-    this.master = ctx.createGain(); this.master.gain.value = .5; this.master.connect(ctx.destination);
+    this.master = ctx.createGain(); this.master.gain.value = this.muted ? 0 : .5; this.master.connect(ctx.destination);
     this.engineOsc = ctx.createOscillator(); this.engineOsc.type = 'sawtooth'; this.engineOsc.frequency.value = 55;
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420;
     this.engineGain = ctx.createGain(); this.engineGain.gain.value = 0;
@@ -507,6 +507,11 @@ const AU = {
     fetch('audio/brake.mp3').then(r => r.arrayBuffer()).then(ab => ctx.decodeAudioData(ab)).then(buf => {
       const bs = ctx.createBufferSource(); bs.buffer = buf; bs.loop = true; bs.connect(this.brakeGain); bs.start();
     }).catch(() => {});
+    /* 录制音效也解码成 AudioBuffer 走 WebAudio：iOS 上非手势触发的 <audio>.play() 会被拦，WebAudio 已在手势里解锁 */
+    this.sfxGain = ctx.createGain(); this.sfxGain.gain.value = 2; this.sfxGain.connect(this.master); // master .5 × 2 ≈ 原 <audio> 音量 1
+    Object.keys(SFX).forEach(k => {
+      fetch('audio/' + k + '.mp3').then(r => r.arrayBuffer()).then(ab => ctx.decodeAudioData(ab)).then(buf => { this.sfxBuf[k] = buf; }).catch(() => {});
+    });
     this.screamOsc = ctx.createOscillator(); this.screamOsc.type = 'sawtooth'; this.screamOsc.frequency.value = 300;
     const sf = ctx.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 1600;
     this.screamGain = ctx.createGain(); this.screamGain.gain.value = 0;
@@ -545,7 +550,7 @@ const AU = {
   },
   alarm(on){
     if (on && !this.alarmTimer) {
-      const ring = () => { this.beep(1175, .11, .15); this.beep(1175, .11, .15, .16); };
+      const ring = () => { if (document.hidden || !this.ctx || this.ctx.state !== 'running') return; this.beep(1175, .11, .15); this.beep(1175, .11, .15, .16); };
       ring(); this.alarmTimer = setInterval(ring, 620);
     } else if (!on && this.alarmTimer) { clearInterval(this.alarmTimer); this.alarmTimer = null; }
   },
@@ -574,8 +579,21 @@ const SFX = {
   fail: new Audio('audio/fail.mp3'),       // 按照华为的质量标准：第二阶段急救失败
   crash: new Audio('audio/crash.mp3')      // 撞上了撞上了：第一阶段刹车踏板断裂
 };
-Object.keys(SFX).forEach(k => { SFX[k].preload = 'auto'; });
-function playSfx(a) { if (AU.muted) return; try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+Object.keys(SFX).forEach(k => { SFX[k].preload = 'auto'; SFX[k]._key = k; });
+function playSfx(a) {
+  if (AU.muted) return;
+  const k = a._key, buf = AU.sfxBuf[k];
+  if (buf && AU.ctx && AU.sfxGain) {
+    try {
+      if (AU.ctx.state !== 'running') AU.ctx.resume().catch(() => {});
+      if (AU.sfxSrc[k]) { try { AU.sfxSrc[k].stop(); } catch (e) {} }
+      const src = AU.ctx.createBufferSource(); src.buffer = buf; src.connect(AU.sfxGain); src.start();
+      AU.sfxSrc[k] = src;
+      return;
+    } catch (e) {}
+  }
+  try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} // 解码未完成时退回 <audio>
+}
 $('muteBtn').addEventListener('click', () => { $('muteBtn').textContent = AU.toggleMute() ? '🔇 音效：关' : '🔊 音效：开'; });
 /* ================= Three 场景 ================= */
 const GANTRY_Z = -284.5;
@@ -3018,6 +3036,7 @@ const SEQ = ['door', 'run', 'call'];
 const SEQ_LABEL = { door: '🚪 开车门', run: '🏃 快跑！', call: '📞 拨打紧急电话' };
 const G = {};
 let clusterTimer = 0, yellowSet = false, redSet = false, crashTimer = 0, snapTimer = 0, burnTimer = 0, brakeVis = 0;
+let brakeEdge = false, scoreRun = 0; // brakeEdge：刹车「松→踩」边沿；scoreRun：每局编号，旧局的成绩回调不改新局界面
 let impactSpeed = 0, seqStep = 0, seqOrder = [], seqBtnEls = [], airbagOut = 0, cdValue = 30, cdLast = -1, cdRed = false;
 
 function hideAllOverlays() {
@@ -3028,8 +3047,8 @@ function hideAllOverlays() {
 }
 function resetGame() {
   Object.assign(G, { phase: 'cruise', speed: 0, z: 0, s: 0, px: -1.75, pz: 0, hx: 0, hz: -1, brakeHeld: false, force: 0, maxForce: 0,
-    failTime: 0, reaction: null, maxSpeed: 0, brakeTime: 0, seqT: 0, shake: 0 });
-  impactSpeed = 0;
+    failTime: 0, reaction: null, maxSpeed: 0, brakeTime: 0, seqT: 0, shake: 0, escapeTime: 0, parkT0: undefined });
+  impactSpeed = 0; brakeEdge = false; scoreRun++;
   CAR.group.position.set(-1.75, 0, 0);
   CAR.group.rotation.set(0, 0, 0);
   CAR.hoodPivot.rotation.x = 0;
@@ -3058,7 +3077,7 @@ function resetGame() {
 }
 
 function triggerFailure() {
-  G.phase = 'runaway'; G.failTime = 0;
+  G.phase = 'runaway'; G.failTime = 0; brakeEdge = false;
   CAR.setScreen('fault'); CAR.stripMat.color.setHex(0xff2a22);
   cdRed = true;
   $('banner').className = 'warn';
@@ -3256,27 +3275,48 @@ function bindHold(el, on, off) {
   el.addEventListener('pointerleave', end);
   el.addEventListener('contextmenu', e => e.preventDefault());
 }
-bindHold($('btnBrake'), () => G.brakeHeld = true, () => G.brakeHeld = false);
+function setBrake(on) { if (on && !G.brakeHeld) brakeEdge = true; G.brakeHeld = on; }
+function resumeAudio() { if (AU.ctx && AU.ctx.state !== 'running') AU.ctx.resume().catch(() => {}); }
+bindHold($('btnBrake'), () => { resumeAudio(); setBrake(true); }, () => setBrake(false));
+const isTyping = e => !!(e.target && e.target.closest && e.target.closest('input,textarea,select,[contenteditable]'));
 addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); G.brakeHeld = true; }
+  if (isTyping(e)) return;
+  if (e.code === 'Space') { e.preventDefault(); setBrake(true); }
   if (G.phase === 'seq' && ['Digit1', 'Digit2', 'Digit3'].includes(e.code)) {
     const i = Number(e.code.slice(-1)) - 1;
-    if (seqBtnEls[i]) seqPress(seqOrder[i], seqBtnEls[i]);
+    if (seqBtnEls[i]) {
+      if (e.repeat || seqBtnEls[i].disabled) return;
+      seqPress(seqOrder[i], seqBtnEls[i]);
+    }
   }
 });
-addEventListener('keyup', e => { if (e.code === 'Space') G.brakeHeld = false; });
+addEventListener('keyup', e => { if (e.code === 'Space') { setBrake(false); if (!isTyping(e)) e.preventDefault(); } }); // Firefox 在 keyup 时触发聚焦按钮的点击
+/* 切到后台 / 失焦：松开刹车、暂停声音；回来再恢复（iOS 来电等打断后也会在这里恢复） */
+function pauseForBackground() {
+  setBrake(false); $('btnBrake').classList.remove('pressed');
+  if (AU.ctx && AU.ctx.state === 'running') AU.ctx.suspend().catch(() => {});
+}
+addEventListener('blur', pauseForBackground);
+addEventListener('focus', () => { if (!document.hidden) resumeAudio(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseForBackground(); else resumeAudio(); });
 ['btnRetry', 'btnRetryFire', 'btnRetryNews', 'btnRetrySurvive'].forEach(id => {
   $(id).addEventListener('click', () => { AU.init(); resetGame(); });
 });
+let startBusy = false;
 $('btnStart').addEventListener('click', async () => {
+  if (startBusy) return;
   AU.init();
   const nm = ($('menuNickname').value || '').trim();
   const hint = $('nameHint');
   if (nm) {
+    startBusy = true;
     try {
-      const r = await postJSON('/api/brake/check-name', { name: nm });
-      if (r && r.ok === false) { hint.textContent = r.error || '昵称不可用'; hint.style.display = 'block'; return; }
+      // 最多等 2 秒；只有服务器明确判定昵称不合法（400 + ok:false）才拦，超时/断网/限流都直接开局
+      const res = await fetchTO(API + '/api/brake/check-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nm }) }, 2000);
+      const r = await res.json().catch(() => null);
+      if (res.status === 400 && r && r.ok === false) { startBusy = false; hint.textContent = r.error || '昵称不可用'; hint.style.display = 'block'; return; }
     } catch (e) {}
+    startBusy = false;
   }
   hint.style.display = 'none';
   resetGame();
@@ -3306,8 +3346,8 @@ function syncViewBtns() {
   document.body.classList.toggle('view-inside', VIEW === 'inside');
 }
 function flipView() { VIEW = VIEW === 'outside' ? 'inside' : 'outside'; try { localStorage.setItem('zhijia-view', VIEW); } catch (e) {} syncViewBtns(); }
-$('viewBtn').addEventListener('click', flipView);
-$('viewBtnHud').addEventListener('click', flipView);
+$('viewBtn').addEventListener('click', e => { flipView(); e.currentTarget.blur(); });
+$('viewBtnHud').addEventListener('click', e => { flipView(); e.currentTarget.blur(); }); // 不留焦点，免得空格刹车时触发切视角
 syncViewBtns();
 let orbit = { th: 0, ph: 0 };
 const cvs = renderer.domElement;
@@ -3324,7 +3364,17 @@ try { DEVICE = localStorage.getItem('zhijia:device') || ''; if (!DEVICE) { DEVIC
 try { $('menuNickname').value = localStorage.getItem('zhijia:nickname') || ''; } catch (e) {}
 $('menuNickname').addEventListener('change', () => { try { localStorage.setItem('zhijia:nickname', $('menuNickname').value.trim().slice(0, 12)); } catch (e) {} });
 function playerName() { return ($('menuNickname').value || '').trim().slice(0, 12) || '无名车手'; }
-function postJSON(path, data) { return fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }).then(r => r.json().catch(() => ({}))).catch(() => ({})); }
+function fetchTO(url, opts, ms) {
+  opts = Object.assign({}, opts);
+  let timer;
+  try {
+    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(ms);
+    else if (typeof AbortController !== 'undefined') { const ac = new AbortController(); timer = setTimeout(() => ac.abort(), ms); opts.signal = ac.signal; }
+  } catch (e) {}
+  // 再兜一层 race：老浏览器不支持 abort 时也不会一直挂着
+  return Promise.race([fetch(url, opts), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms + 50))]).finally(() => clearTimeout(timer));
+}
+function postJSON(path, data, ms = 8000) { return fetchTO(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }, ms).then(r => r.json().catch(() => ({}))).catch(() => ({})); }
 function reportRun(result) {
   postJSON('/api/zhijia/record', { nickname: playerName(), device: DEVICE, mode: DIFF, result: result, brakeTime: G.brakeTime || 0, reaction: G.reaction, maxForce: Math.round(G.maxForce || 0), maxSpeed: Math.round((G.maxSpeed || 0) * 3.6), margin: remain(), escapeTime: +(G.escapeTime || 0).toFixed(3) });
 }
@@ -3349,16 +3399,19 @@ $('btnSubmitScore').addEventListener('click', () => {
   submitScore(name);
 });
 // 成绩同步失败（配额/限流/网络）时自动重试；仍失败则暂存本地，下次打开游戏自动补传，避免成绩丢失
-function sendScore(p, attempt) {
+function sendScore(p, attempt, rid = scoreRun) {
   postJSON('/api/zhijia/score', p).then(res => {
+    const live = rid === scoreRun; // 已经开了新一局：照常补传/暂存，但不动新一局的界面
     if (res && typeof res.score === 'number') {
       clearPendingScore(p);
+      if (!live) return;
       const sb = $('btnSubmitScore'); if (sb) sb.textContent = '已提交 ✓';
       const el = $('rankLine'); if (el) el.textContent = '🏆 本局得分 ' + res.score + ' 分（基础 ' + Math.round(100000 / p.brakeTime) + ' + 第一阶段刹停奖励 1612）· 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
     } else if (attempt < 2) {
-      setTimeout(() => sendScore(p, attempt + 1), attempt === 0 ? 2000 : 5000);
+      setTimeout(() => sendScore(p, attempt + 1, rid), attempt === 0 ? 2000 : 5000);
     } else {
       savePendingScore(p);
+      if (!live) return;
       const sb = $('btnSubmitScore'); if (sb) { sb.disabled = false; sb.textContent = '重新提交'; }
       const el = $('rankLine'); if (el) el.textContent = ((res && res.error) || '成绩同步失败') + '（已暂存，下次打开游戏自动补传）';
     }
@@ -3410,16 +3463,19 @@ $('btnSubmitSv').addEventListener('click', () => {
   const btn = $('btnSubmitSv'); btn.disabled = true; btn.textContent = '提交中……';
   sendScore2({ nickname: name, device: DEVICE, escapeTime: +(G.escapeTime || 0).toFixed(3), reaction: G.reaction }, 0);
 });
-function sendScore2(p, attempt) {
+function sendScore2(p, attempt, rid = scoreRun) {
   postJSON('/api/zhijia/score2', p).then(res => {
+    const live = rid === scoreRun;
     if (res && typeof res.score === 'number') {
       clearPendingScore2(p);
+      if (!live) return;
       $('svScoreLine').innerHTML = '🚑 急救得分 <b>' + res.score + ' 分</b> · 个人最佳 ' + res.best + ' 分（排行榜在主菜单）';
       const btn = $('btnSubmitSv'); if (btn) btn.textContent = '已提交 ✓';
     } else if (attempt < 2) {
-      setTimeout(() => sendScore2(p, attempt + 1), attempt === 0 ? 2000 : 5000);
+      setTimeout(() => sendScore2(p, attempt + 1, rid), attempt === 0 ? 2000 : 5000);
     } else {
       savePendingScore2(p);
+      if (!live) return;
       $('svHint').style.color = '#ff9a8a';
       $('svHint').textContent = ((res && res.error) || '成绩同步失败') + '（已暂存，下次打开游戏自动补传）';
       const btn = $('btnSubmitSv'); if (btn) { btn.disabled = false; btn.textContent = '重新提交'; }
@@ -3492,6 +3548,7 @@ $('btnFbBack').addEventListener('click', () => { $('feedbackOverlay').classList.
 function backToMenu() {
   hideAllOverlays();
   Object.assign(G, { phase: 'menu', speed: 0, z: 0, s: 0, brakeHeld: false, force: 0, shake: 0 });
+  brakeEdge = false; scoreRun++;
   CAR.group.position.set(-1.75, 0, 0); CAR.group.rotation.set(0, 0, 0);
   CAR.hoodPivot.rotation.x = 0;
   CAR.airbag.visible = false; CAR.airbag.scale.setScalar(.01); airbagOut = 0;
@@ -3538,7 +3595,8 @@ const camVec = new THREE.Vector3();
 function step(dt, t) {
   const ph = G.phase;
   if (ph === 'cruise') {
-    if (G.speed < CRUISE_V) G.speed = Math.min(CRUISE_V, G.speed + 4.5 * dt);
+    const cruiseV = Math.min(CRUISE_V, TOP_V * .8); // 简单模式 TOP_V 只有 60km/h，巡航速度不能高于失控极速，否则失灵瞬间反而减速
+    if (G.speed < cruiseV) G.speed = Math.min(cruiseV, G.speed + 4.5 * dt);
     G.s += G.speed * dt;
     cdValue -= dt;
     if (cdValue < 0) cdValue = 30;
@@ -3546,7 +3604,7 @@ function step(dt, t) {
   } else if (ph === 'runaway') {
     G.failTime += dt;
     cdValue = Math.max(0, cdValue - dt);
-    if (G.reaction === null && G.brakeHeld) G.reaction = G.failTime;
+    if (G.reaction === null && brakeEdge) G.reaction = G.failTime; // 失灵前就踩着不算，必须松开再踩
     if (G.brakeHeld) G.force += FORCE_RISE * dt; else G.force -= FORCE_FALL * dt;
     G.force = clamp(G.force, 0, FORCE_MAX + 120);
     G.maxForce = Math.max(G.maxForce, G.force);
@@ -3576,8 +3634,11 @@ function step(dt, t) {
     G.speed = clamp(G.speed + RUN_ACCEL * dt, 0, TOP_V);
     G.maxSpeed = Math.max(G.maxSpeed, G.speed);
     G.s += G.speed * dt;
-    snapTimer -= dt;
-    if (snapTimer <= 0) showResult('snap');
+    if (G.s >= PATH_LEN) { G.s = PATH_LEN; doCrash(); } // 踏板断了车还在冲，到柱子就撞，不再贴着柱子空等
+    else {
+      snapTimer -= dt;
+      if (snapTimer <= 0) showResult('snap');
+    }
   } else if (ph === 'crash') {
     crashTimer -= dt;
     if (crashTimer <= 0) beginSeq();
