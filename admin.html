@@ -73,11 +73,11 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const fmtT = ts => { if (!ts) return '—'; const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
 const RESULT = { win: '🏆 刹停胜利', snap: '💥 踏板断裂', burned: '🔥 车辆起火', news: '📰 新闻播报', survive: '🚪 逃生成功' };
 
-// TODO(安全)：管理密钥目前拼在 URL 的 ?key= 里（会进浏览器历史/代理日志）。
-// 后端 deepseekchatwebtest 的 adminAuth 对 /api/admin/zhijia/* 只认 ?key= 或后台 Cookie，还不支持请求头；
-// 等后端支持 X-Admin-Key 之类的请求头（并在 CORS 里放行）后再改成用 header 传。
+// 管理密钥放在请求头 X-Admin-Key 里传，不再拼进网址（不进浏览器历史、访问日志和 Referer）。
 async function api(path, opts) {
-  const r = await fetch(API + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(KEY), opts);
+  opts = Object.assign({}, opts);
+  opts.headers = Object.assign({}, opts.headers, { 'X-Admin-Key': KEY });
+  const r = await fetch(API + path, opts);
   return r.json().catch(() => ({}));
 }
 async function post(path, body) {
